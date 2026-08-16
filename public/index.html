@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync | Watch Together</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header glass">
+            <div class="logo">SYNC</div>
+            <div class="room-info">
+                Room: <span id="roomNameDisplay">...</span>
+            </div>
+            <div class="header-controls">
+                <button class="action-btn share-btn" id="shareScreenBtn">Share Screen</button>
+                <button class="join-btn" onclick="joinNewRoom()">Switch Room</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Video Section -->
+            <div class="video-container glass">
+                <!-- Using a standard HTML5 video element. -->
+                <video id="syncVideo" controls playsinline>
+                    <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <div class="video-overlay">
+                    <p>Paste a video link. Our server will fetch it to bypass firewalls.</p>
+                    <div class="url-input-group">
+                        <input type="text" id="videoUrlInput" placeholder="Enter video URL (e.g. .mp4 link)">
+                        <button onclick="changeVideo()">Proxy Load</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="chat-container glass">
+                <div class="chat-header">
+                    <h3>Live Chat</h3>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Messages will appear here -->
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chatInput" placeholder="Type a message...">
+                    <button id="sendChatBtn">Send</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal" id="joinModal">
+        <div class="modal-content glass">
+            <h2>Join a Watch Party</h2>
+            <p>Enter a room name to sync with your friend.</p>
+            <input type="text" id="roomInput" placeholder="Room Name (e.g. secret-room)">
+            <input type="text" id="usernameInput" placeholder="Your Name">
+            <button onclick="connectToRoom()">Enter Room</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
