@@ -27,6 +27,14 @@ const fetchJson = (urlStr) => {
     });
 };
 
+const INVIDIOUS_INSTANCES = [
+    'https://invidious.jing.rocks',
+    'https://vid.puffyan.us',
+    'https://inv.tux.pizza',
+    'https://invidious.nerdvpn.de',
+    'https://invidious.namazso.eu'
+];
+
 // Video Proxy Route
 app.get('/proxy', async (req, res) => {
     let videoUrl = req.query.url;
@@ -40,20 +48,28 @@ app.get('/proxy', async (req, res) => {
             const videoId = ytMatch[1];
             console.log('Detected YouTube Video ID:', videoId);
             
-            // Query a public Invidious instance to bypass YouTube bot detection
-            // Note: If this instance goes down, replace with another from api.invidious.io
-            const apiUrl = `https://vid.puffyan.us/api/v1/videos/${videoId}`;
-            
-            console.log('Fetching bypass data from:', apiUrl);
-            const metadata = await fetchJson(apiUrl);
+            let metadata = null;
+            // Try multiple instances until one works
+            for (const instance of INVIDIOUS_INSTANCES) {
+                const apiUrl = `${instance}/api/v1/videos/${videoId}`;
+                console.log(`Trying Invidious API: ${apiUrl}`);
+                try {
+                    metadata = await fetchJson(apiUrl);
+                    if (metadata && metadata.formatStreams && metadata.formatStreams.length > 0) {
+                        break; // Success
+                    }
+                } catch (e) {
+                    console.log(`Instance ${instance} failed. Trying next...`);
+                }
+            }
             
             if (metadata && metadata.formatStreams && metadata.formatStreams.length > 0) {
-                // Get the best format (formatStreams are already combined audio+video mp4s)
+                // Get the best format
                 const bestStream = metadata.formatStreams.sort((a, b) => b.bitrate - a.bitrate)[0];
                 videoUrl = bestStream.url;
                 console.log('Successfully extracted raw MP4 URL');
             } else {
-                throw new Error('Could not find suitable format streams');
+                throw new Error('All Invidious instances failed or blocked.');
             }
         } else {
             console.log('Proxying direct URL:', videoUrl);
