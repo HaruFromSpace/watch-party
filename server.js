@@ -4,7 +4,6 @@ const https = require('https');
 const { Server } = require('socket.io');
 const path = require('path');
 const url = require('url');
-const ytdl = require('@distube/ytdl-core');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,54 +16,75 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Simple room state memory
 const roomState = {};
 
+// Helper to fetch JSON
+const fetchJson = (urlStr) => {
+    return new Promise((resolve, reject) => {
+        https.get(urlStr, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => resolve(JSON.parse(data)));
+        }).on('error', reject);
+    });
+};
+
 // Video Proxy Route
 app.get('/proxy', async (req, res) => {
-    const videoUrl = req.query.url;
+    let videoUrl = req.query.url;
     if (!videoUrl) return res.status(400).send('URL is required');
 
     try {
-        // If it's a YouTube link, use ytdl to stream it
-        if (ytdl.validateURL(videoUrl)) {
-            console.log('Proxying YouTube URL:', videoUrl);
+        // Detect YouTube URL
+        const ytMatch = videoUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+        
+        if (ytMatch && ytMatch[1]) {
+            const videoId = ytMatch[1];
+            console.log('Detected YouTube Video ID:', videoId);
             
-            // Set headers for video stream
-            res.setHeader('Content-Type', 'video/mp4');
+            // Query a public Invidious instance to bypass YouTube bot detection
+            // Note: If this instance goes down, replace with another from api.invidious.io
+            const apiUrl = `https://vid.puffyan.us/api/v1/videos/${videoId}`;
             
-            // Pipe the highest quality combined audio+video stream
-            ytdl(videoUrl, { filter: 'audioandvideo', quality: 'highest' })
-                .on('error', (err) => {
-                    console.error('YTDL Error:', err);
-                    if (!res.headersSent) res.status(500).send('Failed to stream YouTube video');
-                })
-                .pipe(res);
-            return;
+            console.log('Fetching bypass data from:', apiUrl);
+            const metadata = await fetchJson(apiUrl);
+            
+            if (metadata && metadata.formatStreams && metadata.formatStreams.length > 0) {
+                // Get the best format (formatStreams are already combined audio+video mp4s)
+                const bestStream = metadata.formatStreams.sort((a, b) => b.bitrate - a.bitrate)[0];
+                videoUrl = bestStream.url;
+                console.log('Successfully extracted raw MP4 URL');
+            } else {
+                throw new Error('Could not find suitable format streams');
+            }
+        } else {
+            console.log('Proxying direct URL:', videoUrl);
         }
 
-        // Otherwise, it's a standard direct MP4 link, just proxy it via HTTP/HTTPS
-        console.log('Proxying direct URL:', videoUrl);
+        // Now proxy the raw videoUrl (either the direct link or the extracted MP4 link)
         const parsedUrl = new url.URL(videoUrl);
         const requestModule = parsedUrl.protocol === 'https:' ? https : http;
 
         const proxyReq = requestModule.request(videoUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 ...req.headers,
                 host: parsedUrl.host
             }
         }, (proxyRes) => {
+            // Forward headers
             res.writeHead(proxyRes.statusCode, proxyRes.headers);
+            // Pipe the media chunk by chunk
             proxyRes.pipe(res);
         });
 
         proxyReq.on('error', (err) => {
-            console.error('Proxy error:', err);
-            res.status(500).send('Failed to proxy video');
+            console.error('Proxy stream error:', err);
+            if (!res.headersSent) res.status(500).send('Failed to proxy video');
         });
 
         proxyReq.end();
     } catch (err) {
-        console.error(err);
-        res.status(400).send('Invalid URL');
+        console.error('Proxy Error:', err.message);
+        if (!res.headersSent) res.status(400).send('Failed to process URL');
     }
 });
 
