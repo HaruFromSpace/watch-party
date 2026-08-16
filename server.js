@@ -4,6 +4,7 @@ const https = require('https');
 const { Server } = require('socket.io');
 const path = require('path');
 const url = require('url');
+const ytdl = require('@distube/ytdl-core');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,11 +18,30 @@ app.use(express.static(path.join(__dirname, 'public')));
 const roomState = {};
 
 // Video Proxy Route
-app.get('/proxy', (req, res) => {
+app.get('/proxy', async (req, res) => {
     const videoUrl = req.query.url;
     if (!videoUrl) return res.status(400).send('URL is required');
 
     try {
+        // If it's a YouTube link, use ytdl to stream it
+        if (ytdl.validateURL(videoUrl)) {
+            console.log('Proxying YouTube URL:', videoUrl);
+            
+            // Set headers for video stream
+            res.setHeader('Content-Type', 'video/mp4');
+            
+            // Pipe the highest quality combined audio+video stream
+            ytdl(videoUrl, { filter: 'audioandvideo', quality: 'highest' })
+                .on('error', (err) => {
+                    console.error('YTDL Error:', err);
+                    if (!res.headersSent) res.status(500).send('Failed to stream YouTube video');
+                })
+                .pipe(res);
+            return;
+        }
+
+        // Otherwise, it's a standard direct MP4 link, just proxy it via HTTP/HTTPS
+        console.log('Proxying direct URL:', videoUrl);
         const parsedUrl = new url.URL(videoUrl);
         const requestModule = parsedUrl.protocol === 'https:' ? https : http;
 
@@ -32,9 +52,7 @@ app.get('/proxy', (req, res) => {
                 host: parsedUrl.host
             }
         }, (proxyRes) => {
-            // Forward headers
             res.writeHead(proxyRes.statusCode, proxyRes.headers);
-            // Pipe data
             proxyRes.pipe(res);
         });
 
@@ -45,6 +63,7 @@ app.get('/proxy', (req, res) => {
 
         proxyReq.end();
     } catch (err) {
+        console.error(err);
         res.status(400).send('Invalid URL');
     }
 });
