@@ -149,7 +149,20 @@ socket.on('chatMessage', (data) => {
 function appendMessage(sender, text) {
     const div = document.createElement('div');
     div.className = 'chat-message';
-    div.innerHTML = `<div class="sender">${sender}</div><div>${text}</div>`;
+    
+    // Check if the text is a direct link to an image or gif
+    const isImage = text.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null && text.startsWith('http');
+    
+    let contentHtml = '';
+    if (isImage) {
+        contentHtml = `<img src="${text}" style="max-width: 100%; border-radius: 8px; margin-top: 8px; display: block;">`;
+    } else {
+        // Escape HTML to prevent XSS, but allow normal text
+        const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        contentHtml = `<div>${safeText}</div>`;
+    }
+
+    div.innerHTML = `<div class="sender">${sender}</div>${contentHtml}`;
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
