@@ -11,6 +11,8 @@ const joinModal = document.getElementById('joinModal');
 const roomInput = document.getElementById('roomInput');
 const usernameInput = document.getElementById('usernameInput');
 const shareScreenBtn = document.getElementById('shareScreenBtn');
+const ambientGlow = document.getElementById('ambientGlow');
+const glowCtx = ambientGlow.getContext('2d');
 
 let currentRoom = '';
 let username = '';
@@ -26,13 +28,27 @@ const config = {
     ]
 };
 
+// --- Ambient Glow Logic ---
+function drawGlow() {
+    if (!video.paused && !video.ended) {
+        // Draw the current video frame onto the canvas
+        // The canvas is blurred via CSS, creating the ambient glow effect
+        ambientGlow.width = video.videoWidth || 640;
+        ambientGlow.height = video.videoHeight || 360;
+        glowCtx.drawImage(video, 0, 0, ambientGlow.width, ambientGlow.height);
+    }
+    requestAnimationFrame(drawGlow);
+}
+// Start the animation loop
+drawGlow();
+
 // --- Room & Connection Logic ---
 function connectToRoom() {
     const room = roomInput.value.trim();
     const name = usernameInput.value.trim();
     
     if (!room || !name) {
-        alert("Please enter both a room name and your name.");
+        alert("Please enter both a room ID and your alias.");
         return;
     }
 
@@ -43,7 +59,7 @@ function connectToRoom() {
     joinModal.classList.add('hidden');
     
     socket.emit('joinRoom', currentRoom);
-    appendMessage('System', `Joined room: ${currentRoom}`);
+    appendMessage('System', `Joined the void: ${currentRoom}`);
 }
 
 function joinNewRoom() {
@@ -66,10 +82,7 @@ function changeVideo() {
         const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
         video.src = proxyUrl;
         
-        // Let the other person know they need to load this proxy URL
-        socket.emit('chatMessage', { room: currentRoom, message: `Changed video source.`, user: 'System' });
-        // NOTE: For full sync, we'd broadcast the URL. For simplicity in this demo, the other user pastes the same link or we just chat it.
-        // Let's actually just log it for now. We can add a full URL sync event later.
+        socket.emit('chatMessage', { room: currentRoom, message: `Loaded new video source.`, user: 'System' });
     }
 }
 
@@ -143,8 +156,12 @@ function appendMessage(sender, text) {
 
 // --- WebRTC Screen Share Logic ---
 shareScreenBtn.addEventListener('click', async () => {
+    if (shareScreenBtn.classList.contains('sharing')) {
+        stopScreenShare();
+        return;
+    }
+
     try {
-        // Request higher quality settings
         const displayMediaOptions = {
             video: {
                 width: { ideal: 1920, max: 1920 },
@@ -160,44 +177,35 @@ shareScreenBtn.addEventListener('click', async () => {
         
         localStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
         
-        // Show local stream in the video player
         video.srcObject = localStream;
         video.play();
         shareScreenBtn.classList.add('sharing');
-        shareScreenBtn.textContent = 'Stop Sharing';
+        shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
 
-        // Setup WebRTC Connection
         peerConnection = new RTCPeerConnection(config);
         
-        // Add local tracks to peer connection and force high bitrate
         localStream.getTracks().forEach(track => {
             const sender = peerConnection.addTrack(track, localStream);
-            
-            // Force higher bitrate if supported
             if (track.kind === 'video') {
                 const parameters = sender.getParameters();
                 if (!parameters.encodings) {
                     parameters.encodings = [{}];
                 }
-                // Request 5Mbps max bitrate for crisp 1080p
                 parameters.encodings[0].maxBitrate = 5000000; 
                 sender.setParameters(parameters).catch(e => console.error("Bitrate set error:", e));
             }
         });
 
-        // ICE Candidates
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit('webrtc-ice-candidate', { room: currentRoom, candidate: event.candidate });
             }
         };
 
-        // Create Offer
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
         socket.emit('webrtc-offer', { room: currentRoom, offer });
 
-        // Handle stream stop
         localStream.getVideoTracks()[0].onended = () => stopScreenShare();
         
     } catch (err) {
@@ -214,13 +222,13 @@ function stopScreenShare() {
     }
     video.srcObject = null;
     shareScreenBtn.classList.remove('sharing');
-    shareScreenBtn.textContent = 'Share Screen';
+    shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
     appendMessage('System', 'Screen sharing stopped.');
 }
 
 // Incoming WebRTC Offer (Viewer side)
 socket.on('webrtc-offer', async (offer) => {
-    appendMessage('System', 'Incoming screen share. Connecting...');
+    appendMessage('System', 'Incoming screen share. Establishing connection...');
     peerConnection = new RTCPeerConnection(config);
     
     peerConnection.onicecandidate = (event) => {

@@ -4,51 +4,67 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sync | Watch Together</title>
+    <!-- Use high-end typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
         <!-- Header -->
-        <header class="header glass">
-            <div class="logo">SYNC</div>
+        <header class="header">
+            <div class="logo">SYNC.</div>
             <div class="room-info">
-                Room: <span id="roomNameDisplay">...</span>
+                Room <span id="roomNameDisplay">...</span>
             </div>
             <div class="header-controls">
-                <button class="action-btn share-btn" id="shareScreenBtn">Share Screen</button>
-                <button class="join-btn" onclick="joinNewRoom()">Switch Room</button>
+                <button class="action-btn share-btn magnetic" id="shareScreenBtn">
+                    <span class="btn-content">Share Screen</span>
+                </button>
+                <button class="join-btn magnetic" onclick="joinNewRoom()">
+                    <span class="btn-content">Switch Room</span>
+                </button>
             </div>
         </header>
 
         <main class="main-content">
             <!-- Video Section -->
-            <div class="video-container glass">
-                <!-- Using a standard HTML5 video element. -->
-                <video id="syncVideo" controls playsinline>
-                    <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
-                <div class="video-overlay">
-                    <p>Paste a video link. Our server will fetch it to bypass firewalls.</p>
+            <div class="video-container">
+                <!-- Ambient Glow Canvas -->
+                <canvas id="ambientGlow" class="ambient-glow"></canvas>
+                
+                <div class="video-wrapper">
+                    <video id="syncVideo" controls playsinline>
+                        <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+
+                <div class="video-controls-panel">
                     <div class="url-input-group">
-                        <input type="text" id="videoUrlInput" placeholder="Enter video URL (e.g. .mp4 link)">
-                        <button onclick="changeVideo()">Proxy Load</button>
+                        <input type="text" id="videoUrlInput" class="glow-input" placeholder="Paste direct .mp4 link...">
+                        <button class="magnetic load-btn" onclick="changeVideo()">
+                            <span class="btn-content">Load</span>
+                        </button>
                     </div>
                 </div>
             </div>
 
             <!-- Chat Section -->
-            <div class="chat-container glass">
+            <div class="chat-container">
                 <div class="chat-header">
                     <h3>Live Chat</h3>
+                    <div class="pulse-indicator"></div>
                 </div>
                 <div class="chat-messages" id="chatMessages">
                     <!-- Messages will appear here -->
                 </div>
                 <div class="chat-input-area">
-                    <input type="text" id="chatInput" placeholder="Type a message...">
-                    <button id="sendChatBtn">Send</button>
+                    <input type="text" id="chatInput" class="glow-input" placeholder="Type a message...">
+                    <button id="sendChatBtn" class="magnetic send-btn">
+                        <span class="btn-content">Send</span>
+                    </button>
                 </div>
             </div>
         </main>
@@ -56,12 +72,16 @@
 
     <!-- Modals -->
     <div class="modal" id="joinModal">
-        <div class="modal-content glass">
-            <h2>Join a Watch Party</h2>
-            <p>Enter a room name to sync with your friend.</p>
-            <input type="text" id="roomInput" placeholder="Room Name (e.g. secret-room)">
-            <input type="text" id="usernameInput" placeholder="Your Name">
-            <button onclick="connectToRoom()">Enter Room</button>
+        <div class="modal-content">
+            <h2>Enter the Void</h2>
+            <p>Sync up and watch together seamlessly.</p>
+            <div class="input-stack">
+                <input type="text" id="roomInput" class="glow-input" placeholder="Room ID">
+                <input type="text" id="usernameInput" class="glow-input" placeholder="Your Alias">
+            </div>
+            <button class="magnetic enter-btn" onclick="connectToRoom()">
+                <span class="btn-content">Initialize Connection</span>
+            </button>
         </div>
     </div>
 
