@@ -266,11 +266,12 @@ shareScreenBtn.addEventListener('click', async () => {
     }
 
     try {
+        // Optimized for trans-pacific latency (720p 30fps is much more stable than 1080p 60fps)
         const displayMediaOptions = {
             video: {
-                width: { ideal: 1920, max: 1920 },
-                height: { ideal: 1080, max: 1080 },
-                frameRate: { ideal: 60, max: 60 }
+                width: { ideal: 1280, max: 1920 },
+                height: { ideal: 720, max: 1080 },
+                frameRate: { ideal: 30, max: 60 }
             },
             audio: {
                 echoCancellation: false,
@@ -280,6 +281,12 @@ shareScreenBtn.addEventListener('click', async () => {
         };
         
         localStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+        
+        // Optimize video track for motion (prioritizes framerate over resolution if bandwidth drops)
+        const videoTrack = localStream.getVideoTracks()[0];
+        if ('contentHint' in videoTrack) {
+            videoTrack.contentHint = 'motion';
+        }
         
         video.srcObject = localStream;
         video.play();
@@ -295,7 +302,10 @@ shareScreenBtn.addEventListener('click', async () => {
                 if (!parameters.encodings) {
                     parameters.encodings = [{}];
                 }
-                parameters.encodings[0].maxBitrate = 5000000; 
+                // Cap bitrate at 2.5 Mbps to prevent congestion across the pacific
+                parameters.encodings[0].maxBitrate = 2500000; 
+                parameters.encodings[0].networkPriority = 'high';
+                
                 sender.setParameters(parameters).catch(e => console.error("Bitrate set error:", e));
             }
         });
