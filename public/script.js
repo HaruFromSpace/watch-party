@@ -259,6 +259,8 @@ function appendMessage(sender, text) {
 }
 
 // --- WebRTC Screen Share Logic ---
+const qualitySelect = document.getElementById('qualitySelect');
+
 shareScreenBtn.addEventListener('click', async () => {
     if (shareScreenBtn.classList.contains('sharing')) {
         stopScreenShare();
@@ -266,23 +268,36 @@ shareScreenBtn.addEventListener('click', async () => {
     }
 
     try {
-        // Optimized for trans-pacific latency (720p 30fps is much more stable than 1080p 60fps)
-        const displayMediaOptions = {
+        const quality = qualitySelect.value;
+        let displayMediaOptions = {
             video: {
                 width: { ideal: 1280, max: 1920 },
                 height: { ideal: 720, max: 1080 },
                 frameRate: { ideal: 30, max: 60 }
             },
-            audio: {
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false
-            }
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
         };
         
+        let targetBitrate = 2500000; // default 2.5 Mbps
+
+        if (quality === '1080p60') {
+            displayMediaOptions.video = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } };
+            targetBitrate = 5000000;
+        } else if (quality === '720p30') {
+            displayMediaOptions.video = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
+            targetBitrate = 2500000;
+        } else if (quality === '480p30') {
+            displayMediaOptions.video = { width: { ideal: 854 }, height: { ideal: 480 }, frameRate: { ideal: 30 } };
+            targetBitrate = 1000000;
+        } else if (quality === 'auto') {
+            // Adaptive, let the browser decide based on network
+            displayMediaOptions.video = true;
+            targetBitrate = null; 
+        }
+
         localStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
         
-        // Optimize video track for motion (prioritizes framerate over resolution if bandwidth drops)
+        // Optimize video track for motion
         const videoTrack = localStream.getVideoTracks()[0];
         if ('contentHint' in videoTrack) {
             videoTrack.contentHint = 'motion';
@@ -302,10 +317,14 @@ shareScreenBtn.addEventListener('click', async () => {
                 if (!parameters.encodings) {
                     parameters.encodings = [{}];
                 }
-                // Cap bitrate at 2.5 Mbps to prevent congestion across the pacific
-                parameters.encodings[0].maxBitrate = 2500000; 
-                parameters.encodings[0].networkPriority = 'high';
                 
+                if (targetBitrate) {
+                    parameters.encodings[0].maxBitrate = targetBitrate; 
+                } else {
+                    delete parameters.encodings[0].maxBitrate; // Auto
+                }
+                
+                parameters.encodings[0].networkPriority = 'high';
                 sender.setParameters(parameters).catch(e => console.error("Bitrate set error:", e));
             }
         });
