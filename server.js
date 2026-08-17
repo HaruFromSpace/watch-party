@@ -135,11 +135,17 @@ io.on('connection', (socket) => {
 
     socket.on('joinRoom', (room) => {
         socket.join(room);
-        console.log(`${socket.id} joined room ${room}`);
+        console.log(`Socket ${socket.id} joined room ${room}`);
         
         if (roomState[room]) {
             socket.emit('syncState', roomState[room]);
         }
+        
+        socket.to(room).emit('userJoined', socket.id);
+    });
+
+    socket.on('chatMessage', (data) => {
+        io.to(data.room).emit('chatMessage', data);
     });
 
     // Video Sync Events

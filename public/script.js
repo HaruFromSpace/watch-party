@@ -1,4 +1,17 @@
-const socket = io();
+const socket = io({
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    reconnectionAttempts: Infinity,
+    timeout: 20000
+});
+
+// Auto-rejoin room if socket drops and reconnects
+socket.on('connect', () => {
+    if (currentRoom) {
+        socket.emit('joinRoom', currentRoom);
+    }
+});
 
 // DOM Elements
 const video = document.getElementById('syncVideo');
@@ -24,7 +37,18 @@ let localStream;
 const config = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:global.stun.twilio.com:3478' }
+        { urls: 'stun:global.stun.twilio.com:3478' },
+        // Free open TURN server to bypass strict firewalls
+        { 
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        { 
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
     ]
 };
 
@@ -306,6 +330,19 @@ function stopScreenShare() {
     shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
     appendMessage('System', 'Screen sharing stopped.');
 }
+
+// Auto-renegotiate if a user drops and reconnects (or joins late)
+socket.on('userJoined', async () => {
+    if (shareScreenBtn.classList.contains('sharing') && peerConnection && localStream) {
+        try {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            socket.emit('webrtc-offer', { room: currentRoom, offer });
+        } catch (e) {
+            console.error("Renegotiation failed", e);
+        }
+    }
+});
 
 // Incoming WebRTC Offer (Viewer side)
 socket.on('webrtc-offer', async (offer) => {
