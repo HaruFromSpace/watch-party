@@ -36,19 +36,18 @@ let peerConnection;
 let localStream;
 const config = {
     iceServers: [
+        // Standard UDP STUN Servers
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:global.stun.twilio.com:3478' },
-        // Free open TURN server to bypass strict firewalls
-        { 
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        },
-        { 
-            urls: 'turn:openrelay.metered.ca:443',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        }
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        
+        // TURN Servers (Relays traffic when direct P2P is blocked)
+        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        
+        // Bulletproof TURN Servers (Forced TCP / TLS) - Bypasses deep packet inspection
+        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
     ]
 };
 
