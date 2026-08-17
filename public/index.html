@@ -57,10 +57,21 @@
                     <h3>Live Chat</h3>
                     <div class="pulse-indicator"></div>
                 </div>
+                
+                <!-- Sticker Panel (Hidden by default) -->
+                <div class="sticker-panel hidden" id="stickerPanel">
+                    <div class="sticker-grid" id="stickerGrid">
+                        <!-- Stickers injected via JS -->
+                    </div>
+                </div>
+
                 <div class="chat-messages" id="chatMessages">
                     <!-- Messages will appear here -->
                 </div>
                 <div class="chat-input-area">
+                    <button id="toggleStickersBtn" class="magnetic action-btn" title="Stickers">
+                        <span class="btn-content">😊</span>
+                    </button>
                     <input type="text" id="chatInput" class="glow-input" placeholder="Type a message...">
                     <button id="sendChatBtn" class="magnetic send-btn">
                         <span class="btn-content">Send</span>

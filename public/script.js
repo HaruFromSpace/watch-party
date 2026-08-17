@@ -132,6 +132,41 @@ socket.on('seek', (time) => {
 });
 
 // --- Chat Logic ---
+const toggleStickersBtn = document.getElementById('toggleStickersBtn');
+const stickerPanel = document.getElementById('stickerPanel');
+const stickerGrid = document.getElementById('stickerGrid');
+
+// Curated list of reaction gifs
+const STICKERS = [
+    "https://media.tenor.com/2sMePZ0PoyYAAAAC/anime-cheer.gif",
+    "https://media.tenor.com/n1xJ8l8V-zMAAAAC/anime-cry.gif",
+    "https://media.tenor.com/f_GBAqgU-H8AAAAC/anime-wow.gif",
+    "https://media.tenor.com/9v1W31V3T28AAAAC/anime-laugh.gif",
+    "https://media.tenor.com/n14A3J5bQxAAAAAC/anime-angry.gif",
+    "https://media.tenor.com/1GvK_9M3E9EAAAAC/anime-sleep.gif",
+    "https://media.tenor.com/gO2p5-q-oGEAAAAC/anime-eat.gif",
+    "https://media.tenor.com/_q1EhlqZfB0AAAAC/anime-yes.gif",
+    "https://media.tenor.com/bK1RvaXh7hQAAAAC/anime-nod.gif",
+    "https://media.tenor.com/F4CjW5o7_nAAAAAC/anime-shock.gif"
+];
+
+// Populate sticker panel
+STICKERS.forEach(url => {
+    const img = document.createElement('img');
+    img.src = url;
+    img.addEventListener('click', () => {
+        if (currentRoom) {
+            socket.emit('chatMessage', { room: currentRoom, message: url, user: username });
+            stickerPanel.classList.add('hidden');
+        }
+    });
+    stickerGrid.appendChild(img);
+});
+
+toggleStickersBtn.addEventListener('click', () => {
+    stickerPanel.classList.toggle('hidden');
+});
+
 function sendMessage() {
     const message = chatInput.value.trim();
     if (message && currentRoom) {
