@@ -135,9 +135,13 @@ socket.on('seek', (time) => {
 const toggleStickersBtn = document.getElementById('toggleStickersBtn');
 const stickerPanel = document.getElementById('stickerPanel');
 const stickerGrid = document.getElementById('stickerGrid');
+const gifSearchInput = document.getElementById('gifSearchInput');
 
-// Curated list of reaction gifs
-const STICKERS = [
+// Insert your free Tenor API key here to enable live search
+const TENOR_API_KEY = ''; 
+
+// Fallback curated list of reaction gifs if no API key is provided
+const DEFAULT_STICKERS = [
     "https://media.tenor.com/2sMePZ0PoyYAAAAC/anime-cheer.gif",
     "https://media.tenor.com/n1xJ8l8V-zMAAAAC/anime-cry.gif",
     "https://media.tenor.com/f_GBAqgU-H8AAAAC/anime-wow.gif",
@@ -150,21 +154,59 @@ const STICKERS = [
     "https://media.tenor.com/F4CjW5o7_nAAAAAC/anime-shock.gif"
 ];
 
-// Populate sticker panel
-STICKERS.forEach(url => {
-    const img = document.createElement('img');
-    img.src = url;
-    img.addEventListener('click', () => {
-        if (currentRoom) {
-            socket.emit('chatMessage', { room: currentRoom, message: url, user: username });
-            stickerPanel.classList.add('hidden');
-        }
+function renderStickers(urls) {
+    stickerGrid.innerHTML = '';
+    urls.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.addEventListener('click', () => {
+            if (currentRoom) {
+                socket.emit('chatMessage', { room: currentRoom, message: url, user: username });
+                stickerPanel.classList.add('hidden');
+            }
+        });
+        stickerGrid.appendChild(img);
     });
-    stickerGrid.appendChild(img);
+}
+
+async function fetchGifs(query) {
+    if (!TENOR_API_KEY) {
+        renderStickers(DEFAULT_STICKERS);
+        return;
+    }
+    
+    try {
+        const endpoint = query 
+            ? `https://tenor.googleapis.com/v2/search?q=${query}&key=${TENOR_API_KEY}&limit=12`
+            : `https://tenor.googleapis.com/v2/featured?key=${TENOR_API_KEY}&limit=12`;
+            
+        const res = await fetch(endpoint);
+        const data = await res.json();
+        const urls = data.results.map(gif => gif.media_formats.tinygif.url);
+        renderStickers(urls);
+    } catch (err) {
+        console.error("Failed to fetch GIFs", err);
+        renderStickers(DEFAULT_STICKERS);
+    }
+}
+
+// Initial load
+renderStickers(DEFAULT_STICKERS);
+if (TENOR_API_KEY) fetchGifs();
+
+let searchTimeout;
+gifSearchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        fetchGifs(e.target.value.trim());
+    }, 500);
 });
 
 toggleStickersBtn.addEventListener('click', () => {
     stickerPanel.classList.toggle('hidden');
+    if (!stickerPanel.classList.contains('hidden') && TENOR_API_KEY && stickerGrid.children.length === 10) {
+        fetchGifs(gifSearchInput.value.trim());
+    }
 });
 
 function sendMessage() {
