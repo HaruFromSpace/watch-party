@@ -137,10 +137,7 @@ const stickerPanel = document.getElementById('stickerPanel');
 const stickerGrid = document.getElementById('stickerGrid');
 const gifSearchInput = document.getElementById('gifSearchInput');
 
-// Insert your free Tenor API key here to enable live search
-const TENOR_API_KEY = ''; 
-
-// Fallback curated list of reaction gifs if no API key is provided
+// Fallback curated list of reaction gifs if the proxy fails
 const DEFAULT_STICKERS = [
     "https://media.tenor.com/2sMePZ0PoyYAAAAC/anime-cheer.gif",
     "https://media.tenor.com/n1xJ8l8V-zMAAAAC/anime-cry.gif",
@@ -169,30 +166,24 @@ function renderStickers(urls) {
     });
 }
 
-async function fetchGifs(query) {
-    if (!TENOR_API_KEY) {
-        renderStickers(DEFAULT_STICKERS);
-        return;
-    }
-    
+async function fetchGifs(query = '') {
     try {
-        const endpoint = query 
-            ? `https://tenor.googleapis.com/v2/search?q=${query}&key=${TENOR_API_KEY}&limit=12`
-            : `https://tenor.googleapis.com/v2/featured?key=${TENOR_API_KEY}&limit=12`;
-            
-        const res = await fetch(endpoint);
+        const res = await fetch(`/api/gifs?q=${encodeURIComponent(query)}`);
         const data = await res.json();
-        const urls = data.results.map(gif => gif.media_formats.tinygif.url);
-        renderStickers(urls);
+        
+        if (data.urls && data.urls.length > 0) {
+            renderStickers(data.urls);
+        } else {
+            renderStickers(DEFAULT_STICKERS);
+        }
     } catch (err) {
-        console.error("Failed to fetch GIFs", err);
+        console.error("Failed to fetch GIFs from proxy", err);
         renderStickers(DEFAULT_STICKERS);
     }
 }
 
-// Initial load
-renderStickers(DEFAULT_STICKERS);
-if (TENOR_API_KEY) fetchGifs();
+// Initial load via proxy
+fetchGifs();
 
 let searchTimeout;
 gifSearchInput.addEventListener('input', (e) => {
@@ -204,7 +195,7 @@ gifSearchInput.addEventListener('input', (e) => {
 
 toggleStickersBtn.addEventListener('click', () => {
     stickerPanel.classList.toggle('hidden');
-    if (!stickerPanel.classList.contains('hidden') && TENOR_API_KEY && stickerGrid.children.length === 10) {
+    if (!stickerPanel.classList.contains('hidden') && stickerGrid.children.length <= 10) {
         fetchGifs(gifSearchInput.value.trim());
     }
 });

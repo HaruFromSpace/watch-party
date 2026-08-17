@@ -104,6 +104,32 @@ app.get('/proxy', async (req, res) => {
     }
 });
 
+// --- GIF Proxy (Bypasses Great Firewall and removes API Key requirement) ---
+app.get('/api/gifs', (req, res) => {
+    const query = req.query.q || 'trending';
+    const url = `https://tenor.com/search/${encodeURIComponent(query).replace(/%20/g, '-')}-gifs`;
+
+    https.get(url, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+            try {
+                // Extract tenor GIF URLs from the HTML
+                const matches = Array.from(data.matchAll(/src="(https:\/\/media\.tenor\.com\/[^"]+\.gif)"/g));
+                const urls = [...new Set(matches.map(m => m[1]))].slice(0, 12);
+                res.json({ urls });
+            } catch (err) {
+                console.error("Error parsing Tenor HTML:", err);
+                res.json({ urls: [] });
+            }
+        });
+    }).on('error', (err) => {
+        console.error("Error fetching Tenor HTML:", err);
+        res.json({ urls: [] });
+    });
+});
+
+// --- WebRTC Signaling ---
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
