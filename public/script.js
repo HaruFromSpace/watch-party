@@ -299,27 +299,37 @@ async function connectLiveKit() {
             },
         });
 
+        let viewerAudioEl = null;
+
         function attachTrack(track, participant) {
-            if (track.kind !== 'video') return;
+            if (track.kind === 'video') {
+                // Remove old overlay if any
+                const old = document.getElementById('lk-viewer');
+                if (old) old.remove();
+
+                // Pipe directly into the existing video element — preserves layout
+                video.pause();
+                video.removeAttribute('src');
+                video.innerHTML = '';
+                video.load();
+                video.srcObject = new MediaStream([track.mediaStreamTrack]);
+                video.play().catch(() => {});
+                appendMessage('System', `${participant.identity} is sharing their screen.`);
+            } else if (track.kind === 'audio') {
+                // Audio from screen share — create a hidden audio element
+                if (viewerAudioEl) viewerAudioEl.remove();
+                viewerAudioEl = track.attach();
+                viewerAudioEl.style.display = 'none';
+                document.body.appendChild(viewerAudioEl);
+            }
+        }
+
+        function detachAll() {
             const old = document.getElementById('lk-viewer');
             if (old) old.remove();
-
-            const el = track.attach();
-            el.id = 'lk-viewer';
-            el.autoplay = true;
-            el.playsInline = true;
-            el.style.cssText = `
-                position: absolute; top: 0; left: 0;
-                width: 100%; height: 100%;
-                border-radius: 12px;
-                background: #000;
-                z-index: 5;
-                object-fit: contain;
-            `;
-            video.parentElement.style.position = 'relative';
-            video.parentElement.appendChild(el);
-            el.play().catch(() => {});
-            appendMessage('System', `${participant.identity} is sharing their screen.`);
+            if (viewerAudioEl) { viewerAudioEl.remove(); viewerAudioEl = null; }
+            video.pause();
+            video.srcObject = null;
         }
 
         livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
@@ -332,9 +342,7 @@ async function connectLiveKit() {
         });
 
         livekitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
-            track.detach();
-            const el = document.getElementById('lk-viewer');
-            if (el) el.remove();
+            detachAll();
             appendMessage('System', 'Screen share ended.');
         });
 
