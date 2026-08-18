@@ -268,7 +268,7 @@ function appendMessage(sender, text) {
 // Real SFU infrastructure. Works everywhere. Audio + video. No bullshit.
 const qualitySelect = document.getElementById('qualitySelect');
 
-const LIVEKIT_URL = 'wss://YOUR-PROJECT.livekit.cloud'; // <-- Set this after getting LiveKit keys
+const LIVEKIT_URL = 'wss://web-9weyycwi.livekit.cloud';
 
 let livekitRoom = null;
 let screenTrack = null;
