@@ -264,8 +264,14 @@ function appendMessage(sender, text) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// --- WebRTC Screen Share Logic ---
+// --- Server-Relay Screen Share (Canvas Frame Streaming) ---
+// Works through ALL firewalls including Great Firewall. No P2P needed.
 const qualitySelect = document.getElementById('qualitySelect');
+
+let shareInterval = null;
+let shareCanvas = document.createElement('canvas');
+let shareCtx = shareCanvas.getContext('2d');
+let shareVideo = document.createElement('video'); // offscreen video to read frames from
 
 shareScreenBtn.addEventListener('click', async () => {
     if (shareScreenBtn.classList.contains('sharing')) {
@@ -275,188 +281,115 @@ shareScreenBtn.addEventListener('click', async () => {
 
     try {
         const quality = qualitySelect.value;
-        let displayMediaOptions = {
-            video: {
-                width: { ideal: 1280, max: 1920 },
-                height: { ideal: 720, max: 1080 },
-                frameRate: { ideal: 30, max: 60 }
-            },
-            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-        };
+        let constraints = { video: { width: 1280, height: 720, frameRate: 20 }, audio: false };
         
-        let targetBitrate = 2500000; // default 2.5 Mbps
+        if (quality === '1080p60') constraints.video = { width: 1920, height: 1080, frameRate: 30 };
+        else if (quality === '480p30') constraints.video = { width: 854, height: 480, frameRate: 15 };
+        else if (quality === 'auto') constraints.video = { frameRate: 20 };
 
-        if (quality === '1080p60') {
-            displayMediaOptions.video = { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } };
-            targetBitrate = 5000000;
-        } else if (quality === '720p30') {
-            displayMediaOptions.video = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
-            targetBitrate = 2500000;
-        } else if (quality === '480p30') {
-            displayMediaOptions.video = { width: { ideal: 854 }, height: { ideal: 480 }, frameRate: { ideal: 30 } };
-            targetBitrate = 1000000;
-        } else if (quality === 'auto') {
-            // Adaptive, let the browser decide based on network
-            displayMediaOptions.video = true;
-            targetBitrate = null; 
-        }
+        localStream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
-        localStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
-        
-        // Optimize video track for motion
-        const videoTrack = localStream.getVideoTracks()[0];
-        if ('contentHint' in videoTrack) {
-            videoTrack.contentHint = 'motion';
-        }
-        
+        // Mirror to main video for local preview
         video.pause();
         video.removeAttribute('src');
         video.innerHTML = '';
         video.load();
         video.srcObject = localStream;
-        video.play().catch(e => console.error("Sender play error", e));
-        
+        video.play().catch(() => {});
+
+        // Setup offscreen capture
+        const track = localStream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        shareCanvas.width = settings.width || 1280;
+        shareCanvas.height = settings.height || 720;
+
+        shareVideo.srcObject = localStream;
+        shareVideo.play();
+
         shareScreenBtn.classList.add('sharing');
         shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
 
-        // Notify room that we started sharing
+        // Notify viewers we started
         socket.emit('share-started', currentRoom);
 
+        // Frame rate: ~15fps (quality auto: 20fps)
+        const fps = quality === '480p30' ? 10 : quality === '1080p60' ? 20 : 15;
+
+        shareInterval = setInterval(() => {
+            if (shareVideo.readyState < 2) return;
+            shareCtx.drawImage(shareVideo, 0, 0, shareCanvas.width, shareCanvas.height);
+
+            // Quality: 0.4 = small file, 0.7 = decent quality
+            const jpegQuality = quality === '480p30' ? 0.35 : quality === '1080p60' ? 0.65 : 0.5;
+            const frame = shareCanvas.toDataURL('image/jpeg', jpegQuality);
+            socket.emit('screen-frame', { room: currentRoom, frame, w: shareCanvas.width, h: shareCanvas.height });
+        }, 1000 / fps);
+
         localStream.getVideoTracks()[0].onended = () => stopScreenShare();
-        
+
     } catch (err) {
-        console.error("Error accessing display media.", err);
+        console.error("Display media error:", err);
+        appendMessage('System', 'Could not access screen share. Please allow screen capture in your browser.');
     }
 });
 
 function stopScreenShare() {
+    clearInterval(shareInterval);
+    shareInterval = null;
+
     if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+        localStream.getTracks().forEach(t => t.stop());
         localStream = null;
     }
-    
-    // Close all peer connections
-    Object.keys(peers).forEach(viewerId => {
-        if (peers[viewerId]) {
-            peers[viewerId].close();
-            delete peers[viewerId];
-        }
-    });
 
+    shareVideo.srcObject = null;
     video.srcObject = null;
     shareScreenBtn.classList.remove('sharing');
     shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
+    socket.emit('share-stopped', currentRoom);
     appendMessage('System', 'Screen sharing stopped.');
 }
 
-// Viewer connects or joins late -> sender gets userJoined
-socket.on('userJoined', (viewerId) => {
-    if (shareScreenBtn.classList.contains('sharing') && localStream) {
-        // Send a direct share-started to the new user so they know to request an offer
-        socket.emit('webrtc-started-direct', { target: viewerId });
+// Viewer: receive a frame and draw it on canvas overlay
+let viewCanvas = null;
+let viewCtx = null;
+
+socket.on('screen-frame', ({ frame, w, h }) => {
+    // Lazily create a canvas viewer overlay
+    if (!viewCanvas) {
+        viewCanvas = document.createElement('canvas');
+        viewCanvas.style.cssText = `
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            border-radius: 12px;
+            object-fit: contain;
+            z-index: 5;
+            background: #000;
+        `;
+        video.parentElement.style.position = 'relative';
+        video.parentElement.appendChild(viewCanvas);
+        viewCtx = viewCanvas.getContext('2d');
     }
+    viewCanvas.width = w;
+    viewCanvas.height = h;
+
+    const img = new Image();
+    img.onload = () => viewCtx.drawImage(img, 0, 0, w, h);
+    img.src = frame;
 });
-// (Fallback) If server sends share-started to us
-socket.on('share-started', (senderId) => {
-    socket.emit('request-offer', { target: senderId });
-});
-socket.on('webrtc-started-direct', ({ target }) => {
-    socket.emit('request-offer', { target });
+
+socket.on('share-started', () => {
+    appendMessage('System', 'Screen share started. Receiving stream...');
 });
 
-// Sender creates an offer for a specific viewer
-socket.on('request-offer', async (viewerId) => {
-    if (!shareScreenBtn.classList.contains('sharing') || !localStream) return;
-    
-    const pc = new RTCPeerConnection(config);
-    peers[viewerId] = pc;
-    
-    localStream.getTracks().forEach(track => {
-        const sender = pc.addTrack(track, localStream);
-        if (track.kind === 'video') {
-            const parameters = sender.getParameters();
-            if (!parameters.encodings) parameters.encodings = [{}];
-            
-            const quality = qualitySelect.value;
-            let targetBitrate = 2500000;
-            if (quality === '1080p60') targetBitrate = 5000000;
-            else if (quality === '480p30') targetBitrate = 1000000;
-            else if (quality === 'auto') targetBitrate = null;
-
-            if (targetBitrate) parameters.encodings[0].maxBitrate = targetBitrate;
-            else delete parameters.encodings[0].maxBitrate;
-            
-            parameters.encodings[0].networkPriority = 'high';
-            sender.setParameters(parameters).catch(e => console.error("Bitrate set error:", e));
-        }
-    });
-
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            socket.emit('webrtc-ice-candidate', { target: viewerId, candidate: event.candidate });
-        }
-    };
-
-    try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit('webrtc-offer', { target: viewerId, offer });
-    } catch (e) {
-        console.error("Failed to create offer", e);
+socket.on('share-stopped', () => {
+    if (viewCanvas) {
+        viewCanvas.remove();
+        viewCanvas = null;
+        viewCtx = null;
     }
+    appendMessage('System', 'Screen share ended.');
 });
 
-// Viewer receives offer
-socket.on('webrtc-offer', async ({ offer, sender }) => {
-    appendMessage('System', 'Incoming screen share. Establishing connection...');
-    const pc = new RTCPeerConnection(config);
-    peers[sender] = pc;
-    
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            socket.emit('webrtc-ice-candidate', { target: sender, candidate: event.candidate });
-        }
-    };
 
-    pc.ontrack = (event) => {
-        video.pause();
-        video.removeAttribute('src');
-        video.innerHTML = '';
-        video.load();
-        video.srcObject = event.streams[0];
-        video.play().catch(e => console.error("Viewer play error", e));
-    };
 
-    try {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit('webrtc-answer', { target: sender, answer });
-    } catch (e) {
-        console.error("Error setting remote description or creating answer", e);
-    }
-});
-
-// Sender receives answer
-socket.on('webrtc-answer', async ({ answer, sender }) => {
-    const pc = peers[sender];
-    if (pc) {
-        try {
-            await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (e) {
-            console.error("Error setting answer", e);
-        }
-    }
-});
-
-// Both receive ICE candidates
-socket.on('webrtc-ice-candidate', async ({ candidate, sender }) => {
-    const pc = peers[sender];
-    if (pc) {
-        try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-            console.error('Error adding received ice candidate', e);
-        }
-    }
-});

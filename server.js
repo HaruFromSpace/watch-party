@@ -166,24 +166,15 @@ io.on('connection', (socket) => {
         io.to(room).emit('chatMessage', { message, user });
     });
 
-    // WebRTC Signaling Events (Peer-to-Peer Routing)
+    // Canvas Frame Relay (Server-relayed screen share - works through all firewalls)
+    socket.on('screen-frame', ({ room, frame, w, h }) => {
+        socket.to(room).emit('screen-frame', { frame, w, h });
+    });
     socket.on('share-started', (room) => {
-        socket.to(room).emit('share-started', socket.id);
+        socket.to(room).emit('share-started');
     });
-    socket.on('webrtc-started-direct', ({ target }) => {
-        io.to(target).emit('webrtc-started-direct', { target: socket.id });
-    });
-    socket.on('request-offer', ({ target }) => {
-        io.to(target).emit('request-offer', socket.id);
-    });
-    socket.on('webrtc-offer', ({ target, offer }) => {
-        io.to(target).emit('webrtc-offer', { offer, sender: socket.id });
-    });
-    socket.on('webrtc-answer', ({ target, answer }) => {
-        io.to(target).emit('webrtc-answer', { answer, sender: socket.id });
-    });
-    socket.on('webrtc-ice-candidate', ({ target, candidate }) => {
-        io.to(target).emit('webrtc-ice-candidate', { candidate, sender: socket.id });
+    socket.on('share-stopped', (room) => {
+        socket.to(room).emit('share-stopped');
     });
 
     socket.on('disconnect', () => {
