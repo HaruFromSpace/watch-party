@@ -281,7 +281,7 @@ async function getLivekitToken(room, name) {
 }
 
 async function connectLiveKit() {
-    if (livekitRoom) return; // already connected
+    if (livekitRoom) return;
     if (!currentRoom || !username) return;
 
     try {
@@ -291,30 +291,39 @@ async function connectLiveKit() {
         livekitRoom = new Room({
             adaptiveStream: true,
             dynacast: true,
+            autoSubscribe: true,
         });
 
-        livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-            if (track.kind === 'video') {
-                // Remove old viewer if any
-                const old = document.getElementById('lk-viewer');
-                if (old) old.remove();
+        function attachTrack(track, participant) {
+            if (track.kind !== 'video') return;
+            const old = document.getElementById('lk-viewer');
+            if (old) old.remove();
 
-                const el = track.attach();
-                el.id = 'lk-viewer';
-                el.autoplay = true;
-                el.playsInline = true;
-                el.style.cssText = `
-                    position: absolute; top: 0; left: 0;
-                    width: 100%; height: 100%;
-                    border-radius: 12px;
-                    background: #000;
-                    z-index: 5;
-                    object-fit: contain;
-                `;
-                video.parentElement.style.position = 'relative';
-                video.parentElement.appendChild(el);
-                appendMessage('System', `${participant.identity} is sharing their screen.`);
-            }
+            const el = track.attach();
+            el.id = 'lk-viewer';
+            el.autoplay = true;
+            el.playsInline = true;
+            el.style.cssText = `
+                position: absolute; top: 0; left: 0;
+                width: 100%; height: 100%;
+                border-radius: 12px;
+                background: #000;
+                z-index: 5;
+                object-fit: contain;
+            `;
+            video.parentElement.style.position = 'relative';
+            video.parentElement.appendChild(el);
+            el.play().catch(() => {});
+            appendMessage('System', `${participant.identity} is sharing their screen.`);
+        }
+
+        livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+            attachTrack(track, participant);
+        });
+
+        // Fallback: if track is published after we join
+        livekitRoom.on(RoomEvent.TrackPublished, (publication, participant) => {
+            publication.setSubscribed(true);
         });
 
         livekitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
@@ -326,12 +335,23 @@ async function connectLiveKit() {
 
         livekitRoom.on(RoomEvent.Disconnected, () => {
             livekitRoom = null;
-            appendMessage('System', 'Disconnected from LiveKit. Will reconnect...');
+            appendMessage('System', 'Disconnected from LiveKit. Reconnecting...');
             setTimeout(connectLiveKit, 2000);
         });
 
         await livekitRoom.connect(LIVEKIT_URL, token);
         console.log('LiveKit connected:', livekitRoom.name);
+
+        // Check for already-publishing participants (joined late case)
+        livekitRoom.remoteParticipants.forEach((participant) => {
+            participant.trackPublications.forEach((publication) => {
+                if (publication.isSubscribed && publication.track) {
+                    attachTrack(publication.track, participant);
+                } else if (publication.kind === 'video') {
+                    publication.setSubscribed(true);
+                }
+            });
+        });
 
     } catch (err) {
         console.error('LiveKit connect error:', err);
