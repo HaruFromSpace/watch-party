@@ -32,7 +32,7 @@ let username = '';
 let isSyncing = false; // Flag to prevent echo loops
 
 // WebRTC State
-let peerConnection;
+const peers = {};
 let localStream;
 const config = {
     iceServers: [
@@ -306,38 +306,15 @@ shareScreenBtn.addEventListener('click', async () => {
         video.srcObject = localStream;
         video.play();
         shareScreenBtn.classList.add('sharing');
+        video.src = '';
+        video.removeAttribute('src');
+        video.srcObject = localStream;
+        video.play();
+        shareScreenBtn.classList.add('sharing');
         shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
 
-        peerConnection = new RTCPeerConnection(config);
-        
-        localStream.getTracks().forEach(track => {
-            const sender = peerConnection.addTrack(track, localStream);
-            if (track.kind === 'video') {
-                const parameters = sender.getParameters();
-                if (!parameters.encodings) {
-                    parameters.encodings = [{}];
-                }
-                
-                if (targetBitrate) {
-                    parameters.encodings[0].maxBitrate = targetBitrate; 
-                } else {
-                    delete parameters.encodings[0].maxBitrate; // Auto
-                }
-                
-                parameters.encodings[0].networkPriority = 'high';
-                sender.setParameters(parameters).catch(e => console.error("Bitrate set error:", e));
-            }
-        });
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('webrtc-ice-candidate', { room: currentRoom, candidate: event.candidate });
-            }
-        };
-
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        socket.emit('webrtc-offer', { room: currentRoom, offer });
+        // Notify room that we started sharing
+        socket.emit('share-started', currentRoom);
 
         localStream.getVideoTracks()[0].onended = () => stopScreenShare();
         
@@ -349,61 +326,127 @@ shareScreenBtn.addEventListener('click', async () => {
 function stopScreenShare() {
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
     }
-    if (peerConnection) {
-        peerConnection.close();
-    }
+    
+    // Close all peer connections
+    Object.keys(peers).forEach(viewerId => {
+        if (peers[viewerId]) {
+            peers[viewerId].close();
+            delete peers[viewerId];
+        }
+    });
+
     video.srcObject = null;
     shareScreenBtn.classList.remove('sharing');
     shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
     appendMessage('System', 'Screen sharing stopped.');
 }
 
-// Auto-renegotiate if a user drops and reconnects (or joins late)
-socket.on('userJoined', async () => {
-    if (shareScreenBtn.classList.contains('sharing') && peerConnection && localStream) {
-        try {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            socket.emit('webrtc-offer', { room: currentRoom, offer });
-        } catch (e) {
-            console.error("Renegotiation failed", e);
-        }
+// Viewer connects or joins late -> sender gets userJoined
+socket.on('userJoined', (viewerId) => {
+    if (shareScreenBtn.classList.contains('sharing') && localStream) {
+        // Send a direct share-started to the new user so they know to request an offer
+        socket.emit('webrtc-started-direct', { target: viewerId });
     }
 });
+// (Fallback) If server sends share-started to us
+socket.on('share-started', (senderId) => {
+    socket.emit('request-offer', { target: senderId });
+});
+socket.on('webrtc-started-direct', ({ target }) => {
+    socket.emit('request-offer', { target });
+});
 
-// Incoming WebRTC Offer (Viewer side)
-socket.on('webrtc-offer', async (offer) => {
-    appendMessage('System', 'Incoming screen share. Establishing connection...');
-    peerConnection = new RTCPeerConnection(config);
+// Sender creates an offer for a specific viewer
+socket.on('request-offer', async (viewerId) => {
+    if (!shareScreenBtn.classList.contains('sharing') || !localStream) return;
     
-    peerConnection.onicecandidate = (event) => {
+    const pc = new RTCPeerConnection(config);
+    peers[viewerId] = pc;
+    
+    localStream.getTracks().forEach(track => {
+        const sender = pc.addTrack(track, localStream);
+        if (track.kind === 'video') {
+            const parameters = sender.getParameters();
+            if (!parameters.encodings) parameters.encodings = [{}];
+            
+            const quality = qualitySelect.value;
+            let targetBitrate = 2500000;
+            if (quality === '1080p60') targetBitrate = 5000000;
+            else if (quality === '480p30') targetBitrate = 1000000;
+            else if (quality === 'auto') targetBitrate = null;
+
+            if (targetBitrate) parameters.encodings[0].maxBitrate = targetBitrate;
+            else delete parameters.encodings[0].maxBitrate;
+            
+            parameters.encodings[0].networkPriority = 'high';
+            sender.setParameters(parameters).catch(e => console.error("Bitrate set error:", e));
+        }
+    });
+
+    pc.onicecandidate = (event) => {
         if (event.candidate) {
-            socket.emit('webrtc-ice-candidate', { room: currentRoom, candidate: event.candidate });
+            socket.emit('webrtc-ice-candidate', { target: viewerId, candidate: event.candidate });
         }
     };
 
-    peerConnection.ontrack = (event) => {
+    try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit('webrtc-offer', { target: viewerId, offer });
+    } catch (e) {
+        console.error("Failed to create offer", e);
+    }
+});
+
+// Viewer receives offer
+socket.on('webrtc-offer', async ({ offer, sender }) => {
+    appendMessage('System', 'Incoming screen share. Establishing connection...');
+    const pc = new RTCPeerConnection(config);
+    peers[sender] = pc;
+    
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('webrtc-ice-candidate', { target: sender, candidate: event.candidate });
+        }
+    };
+
+    pc.ontrack = (event) => {
+        video.src = '';
+        video.removeAttribute('src');
         video.srcObject = event.streams[0];
         video.play();
     };
 
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit('webrtc-answer', { room: currentRoom, answer });
-});
-
-socket.on('webrtc-answer', async (answer) => {
-    if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('webrtc-answer', { target: sender, answer });
+    } catch (e) {
+        console.error("Error setting remote description or creating answer", e);
     }
 });
 
-socket.on('webrtc-ice-candidate', async (candidate) => {
-    if (peerConnection) {
+// Sender receives answer
+socket.on('webrtc-answer', async ({ answer, sender }) => {
+    const pc = peers[sender];
+    if (pc) {
         try {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (e) {
+            console.error("Error setting answer", e);
+        }
+    }
+});
+
+// Both receive ICE candidates
+socket.on('webrtc-ice-candidate', async ({ candidate, sender }) => {
+    const pc = peers[sender];
+    if (pc) {
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
             console.error('Error adding received ice candidate', e);
         }

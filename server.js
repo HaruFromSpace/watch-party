@@ -144,10 +144,6 @@ io.on('connection', (socket) => {
         socket.to(room).emit('userJoined', socket.id);
     });
 
-    socket.on('chatMessage', (data) => {
-        io.to(data.room).emit('chatMessage', data);
-    });
-
     // Video Sync Events
     socket.on('play', ({ room, time }) => {
         roomState[room] = { playing: true, time, lastUpdate: Date.now() };
@@ -170,15 +166,24 @@ io.on('connection', (socket) => {
         io.to(room).emit('chatMessage', { message, user });
     });
 
-    // WebRTC Signaling Events
-    socket.on('webrtc-offer', ({ room, offer }) => {
-        socket.to(room).emit('webrtc-offer', offer);
+    // WebRTC Signaling Events (Peer-to-Peer Routing)
+    socket.on('share-started', (room) => {
+        socket.to(room).emit('share-started', socket.id);
     });
-    socket.on('webrtc-answer', ({ room, answer }) => {
-        socket.to(room).emit('webrtc-answer', answer);
+    socket.on('webrtc-started-direct', ({ target }) => {
+        io.to(target).emit('webrtc-started-direct', { target: socket.id });
     });
-    socket.on('webrtc-ice-candidate', ({ room, candidate }) => {
-        socket.to(room).emit('webrtc-ice-candidate', candidate);
+    socket.on('request-offer', ({ target }) => {
+        io.to(target).emit('request-offer', socket.id);
+    });
+    socket.on('webrtc-offer', ({ target, offer }) => {
+        io.to(target).emit('webrtc-offer', { offer, sender: socket.id });
+    });
+    socket.on('webrtc-answer', ({ target, answer }) => {
+        io.to(target).emit('webrtc-answer', { answer, sender: socket.id });
+    });
+    socket.on('webrtc-ice-candidate', ({ target, candidate }) => {
+        io.to(target).emit('webrtc-ice-candidate', { candidate, sender: socket.id });
     });
 
     socket.on('disconnect', () => {
