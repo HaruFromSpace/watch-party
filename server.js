@@ -166,12 +166,12 @@ io.on('connection', (socket) => {
         io.to(room).emit('chatMessage', { message, user });
     });
 
-    // Canvas Frame Relay (Server-relayed screen share - works through all firewalls)
-    socket.on('screen-frame', ({ room, frame, w, h }) => {
-        socket.to(room).emit('screen-frame', { frame, w, h });
+    // MediaRecorder Chunked Stream Relay (works through all firewalls)
+    socket.on('share-started', ({ room, mimeType }) => {
+        socket.to(room).emit('share-started', { mimeType });
     });
-    socket.on('share-started', (room) => {
-        socket.to(room).emit('share-started');
+    socket.on('screen-chunk', ({ room, chunk }) => {
+        socket.to(room).emit('screen-chunk', chunk);
     });
     socket.on('share-stopped', (room) => {
         socket.to(room).emit('share-stopped');

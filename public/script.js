@@ -264,14 +264,25 @@ function appendMessage(sender, text) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// --- Server-Relay Screen Share (Canvas Frame Streaming) ---
-// Works through ALL firewalls including Great Firewall. No P2P needed.
+// --- Server-Relay Screen Share (MediaRecorder Chunked Streaming) ---
+// Smooth video + audio, works through ALL firewalls. No WebRTC needed.
 const qualitySelect = document.getElementById('qualitySelect');
 
-let shareInterval = null;
-let shareCanvas = document.createElement('canvas');
-let shareCtx = shareCanvas.getContext('2d');
-let shareVideo = document.createElement('video'); // offscreen video to read frames from
+let mediaRecorder = null;
+
+// Pick best supported mime type
+function getSupportedMimeType() {
+    const types = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=h264,opus',
+        'video/webm',
+    ];
+    for (const type of types) {
+        if (MediaRecorder.isTypeSupported(type)) return type;
+    }
+    return '';
+}
 
 shareScreenBtn.addEventListener('click', async () => {
     if (shareScreenBtn.classList.contains('sharing')) {
@@ -281,15 +292,18 @@ shareScreenBtn.addEventListener('click', async () => {
 
     try {
         const quality = qualitySelect.value;
-        let constraints = { video: { width: 1280, height: 720, frameRate: 20 }, audio: false };
         
-        if (quality === '1080p60') constraints.video = { width: 1920, height: 1080, frameRate: 30 };
-        else if (quality === '480p30') constraints.video = { width: 854, height: 480, frameRate: 15 };
-        else if (quality === 'auto') constraints.video = { frameRate: 20 };
+        // Capture screen + system audio (audio: true lets browser prompt for it)
+        const displayConstraints = {
+            video: quality === '1080p60' ? { width: 1920, height: 1080, frameRate: 30 }
+                 : quality === '480p30'  ? { width: 854,  height: 480,  frameRate: 24 }
+                 :                         { width: 1280, height: 720,  frameRate: 30 },
+            audio: true // prompts user to share tab/system audio
+        };
 
-        localStream = await navigator.mediaDevices.getDisplayMedia(constraints);
+        localStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
 
-        // Mirror to main video for local preview
+        // Local preview
         video.pause();
         video.removeAttribute('src');
         video.innerHTML = '';
@@ -297,52 +311,47 @@ shareScreenBtn.addEventListener('click', async () => {
         video.srcObject = localStream;
         video.play().catch(() => {});
 
-        // Setup offscreen capture
-        const track = localStream.getVideoTracks()[0];
-        const settings = track.getSettings();
-        shareCanvas.width = settings.width || 1280;
-        shareCanvas.height = settings.height || 720;
-
-        shareVideo.srcObject = localStream;
-        shareVideo.play();
-
         shareScreenBtn.classList.add('sharing');
         shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
 
-        // Notify viewers we started
-        socket.emit('share-started', currentRoom);
+        const mimeType = getSupportedMimeType();
+        const bitsPerSecond = quality === '1080p60' ? 4000000 : quality === '480p30' ? 800000 : 2000000;
 
-        // Frame rate: ~15fps (quality auto: 20fps)
-        const fps = quality === '480p30' ? 10 : quality === '1080p60' ? 20 : 15;
+        mediaRecorder = new MediaRecorder(localStream, {
+            mimeType: mimeType || undefined,
+            videoBitsPerSecond: bitsPerSecond
+        });
 
-        shareInterval = setInterval(() => {
-            if (shareVideo.readyState < 2) return;
-            shareCtx.drawImage(shareVideo, 0, 0, shareCanvas.width, shareCanvas.height);
+        // Announce mime type so viewers can init their MediaSource correctly
+        socket.emit('share-started', { room: currentRoom, mimeType: mediaRecorder.mimeType });
 
-            // Quality: 0.4 = small file, 0.7 = decent quality
-            const jpegQuality = quality === '480p30' ? 0.35 : quality === '1080p60' ? 0.65 : 0.5;
-            const frame = shareCanvas.toDataURL('image/jpeg', jpegQuality);
-            socket.emit('screen-frame', { room: currentRoom, frame, w: shareCanvas.width, h: shareCanvas.height });
-        }, 1000 / fps);
+        // Send chunks every 150ms — smooth playback, low latency
+        mediaRecorder.ondataavailable = async (e) => {
+            if (e.data && e.data.size > 0) {
+                const buf = await e.data.arrayBuffer();
+                socket.emit('screen-chunk', { room: currentRoom, chunk: buf });
+            }
+        };
+
+        mediaRecorder.start(150); // 150ms chunks
 
         localStream.getVideoTracks()[0].onended = () => stopScreenShare();
 
     } catch (err) {
         console.error("Display media error:", err);
-        appendMessage('System', 'Could not access screen share. Please allow screen capture in your browser.');
+        appendMessage('System', 'Could not share screen. Allow screen capture and try again.');
     }
 });
 
 function stopScreenShare() {
-    clearInterval(shareInterval);
-    shareInterval = null;
-
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        mediaRecorder = null;
+    }
     if (localStream) {
         localStream.getTracks().forEach(t => t.stop());
         localStream = null;
     }
-
-    shareVideo.srcObject = null;
     video.srcObject = null;
     shareScreenBtn.classList.remove('sharing');
     shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
@@ -350,46 +359,84 @@ function stopScreenShare() {
     appendMessage('System', 'Screen sharing stopped.');
 }
 
-// Viewer: receive a frame and draw it on canvas overlay
-let viewCanvas = null;
-let viewCtx = null;
+// --- Viewer: MediaSource Extensions playback ---
+let mediaSource = null;
+let sourceBuffer = null;
+let chunkQueue = [];
+let viewerVideo = null;
 
-socket.on('screen-frame', ({ frame, w, h }) => {
-    // Lazily create a canvas viewer overlay
-    if (!viewCanvas) {
-        viewCanvas = document.createElement('canvas');
-        viewCanvas.style.cssText = `
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
-            border-radius: 12px;
-            object-fit: contain;
-            z-index: 5;
-            background: #000;
-        `;
-        video.parentElement.style.position = 'relative';
-        video.parentElement.appendChild(viewCanvas);
-        viewCtx = viewCanvas.getContext('2d');
+function setupViewer(mimeType) {
+    // Remove any old viewer
+    if (viewerVideo) { viewerVideo.remove(); viewerVideo = null; }
+
+    mediaSource = new MediaSource();
+    sourceBuffer = null;
+    chunkQueue = [];
+
+    viewerVideo = document.createElement('video');
+    viewerVideo.autoplay = true;
+    viewerVideo.playsInline = true;
+    viewerVideo.muted = false;
+    viewerVideo.style.cssText = `
+        position: absolute; top: 0; left: 0;
+        width: 100%; height: 100%;
+        border-radius: 12px;
+        background: #000;
+        z-index: 5;
+        object-fit: contain;
+    `;
+    video.parentElement.style.position = 'relative';
+    video.parentElement.appendChild(viewerVideo);
+
+    viewerVideo.src = URL.createObjectURL(mediaSource);
+
+    mediaSource.addEventListener('sourceopen', () => {
+        try {
+            sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+            sourceBuffer.mode = 'sequence';
+            sourceBuffer.addEventListener('updateend', flushQueue);
+            flushQueue();
+        } catch (e) {
+            console.error("SourceBuffer setup failed:", e);
+        }
+    });
+}
+
+function flushQueue() {
+    if (!sourceBuffer || sourceBuffer.updating || chunkQueue.length === 0) return;
+    try {
+        sourceBuffer.appendBuffer(chunkQueue.shift());
+    } catch (e) {
+        console.error("appendBuffer error:", e);
+        chunkQueue = []; // clear queue on error
     }
-    viewCanvas.width = w;
-    viewCanvas.height = h;
+}
 
-    const img = new Image();
-    img.onload = () => viewCtx.drawImage(img, 0, 0, w, h);
-    img.src = frame;
+socket.on('share-started', ({ mimeType }) => {
+    appendMessage('System', 'Screen share started. Connecting...');
+    if (!MediaSource.isTypeSupported(mimeType)) {
+        appendMessage('System', `Your browser doesn't support ${mimeType}. Try Chrome.`);
+        return;
+    }
+    setupViewer(mimeType);
 });
 
-socket.on('share-started', () => {
-    appendMessage('System', 'Screen share started. Receiving stream...');
+socket.on('screen-chunk', (chunk) => {
+    if (!sourceBuffer) return;
+    chunkQueue.push(chunk);
+    flushQueue();
 });
 
 socket.on('share-stopped', () => {
-    if (viewCanvas) {
-        viewCanvas.remove();
-        viewCanvas = null;
-        viewCtx = null;
-    }
+    if (viewerVideo) { viewerVideo.remove(); viewerVideo = null; }
+    mediaSource = null;
+    sourceBuffer = null;
+    chunkQueue = [];
     appendMessage('System', 'Screen share ended.');
 });
+
+
+
 
 
 
