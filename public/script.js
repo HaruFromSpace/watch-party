@@ -103,6 +103,12 @@ function changeVideo() {
     if (url) {
         // Route through our backend proxy
         const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
+        
+        // Clear any WebRTC stream
+        if (shareScreenBtn.classList.contains('sharing')) {
+            stopScreenShare();
+        }
+        video.srcObject = null;
         video.src = proxyUrl;
         
         socket.emit('chatMessage', { room: currentRoom, message: `Loaded new video source.`, user: 'System' });
@@ -303,13 +309,13 @@ shareScreenBtn.addEventListener('click', async () => {
             videoTrack.contentHint = 'motion';
         }
         
-        video.srcObject = localStream;
-        video.play();
-        shareScreenBtn.classList.add('sharing');
-        video.src = '';
+        video.pause();
         video.removeAttribute('src');
+        video.innerHTML = '';
+        video.load();
         video.srcObject = localStream;
-        video.play();
+        video.play().catch(e => console.error("Sender play error", e));
+        
         shareScreenBtn.classList.add('sharing');
         shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
 
@@ -413,10 +419,12 @@ socket.on('webrtc-offer', async ({ offer, sender }) => {
     };
 
     pc.ontrack = (event) => {
-        video.src = '';
+        video.pause();
         video.removeAttribute('src');
+        video.innerHTML = '';
+        video.load();
         video.srcObject = event.streams[0];
-        video.play();
+        video.play().catch(e => console.error("Viewer play error", e));
     };
 
     try {
