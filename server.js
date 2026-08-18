@@ -4,14 +4,35 @@ const https = require('https');
 const { Server } = require('socket.io');
 const path = require('path');
 const url = require('url');
+const { AccessToken } = require('livekit-server-sdk');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// LiveKit Token Endpoint
+app.get('/api/livekit-token', async (req, res) => {
+    const { room, username } = req.query;
+    if (!room || !username) return res.status(400).json({ error: 'room and username required' });
+    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+        return res.status(500).json({ error: 'LiveKit API keys not configured on server.' });
+    }
+
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+        identity: username,
+        ttl: '6h',
+    });
+    at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
+
+    const token = await at.toJwt();
+    res.json({ token });
+});
 
 // Simple room state memory
 const roomState = {};

@@ -264,176 +264,148 @@ function appendMessage(sender, text) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// --- Server-Relay Screen Share (MediaRecorder Chunked Streaming) ---
-// Smooth video + audio, works through ALL firewalls. No WebRTC needed.
+// --- LiveKit Screen Share ---
+// Real SFU infrastructure. Works everywhere. Audio + video. No bullshit.
 const qualitySelect = document.getElementById('qualitySelect');
 
-let mediaRecorder = null;
+const LIVEKIT_URL = 'wss://YOUR-PROJECT.livekit.cloud'; // <-- Set this after getting LiveKit keys
 
-// Pick best supported mime type
-function getSupportedMimeType() {
-    const types = [
-        'video/webm;codecs=vp9,opus',
-        'video/webm;codecs=vp8,opus',
-        'video/webm;codecs=h264,opus',
-        'video/webm',
-    ];
-    for (const type of types) {
-        if (MediaRecorder.isTypeSupported(type)) return type;
+let livekitRoom = null;
+let screenTrack = null;
+
+async function getLivekitToken(room, name) {
+    const res = await fetch(`/api/livekit-token?room=${encodeURIComponent(room)}&username=${encodeURIComponent(name)}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data.token;
+}
+
+async function connectLiveKit() {
+    if (livekitRoom) return; // already connected
+    if (!currentRoom || !username) return;
+
+    try {
+        const token = await getLivekitToken(currentRoom, username);
+        const { Room, RoomEvent } = LivekitClient;
+
+        livekitRoom = new Room({
+            adaptiveStream: true,
+            dynacast: true,
+        });
+
+        livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+            if (track.kind === 'video') {
+                // Remove old viewer if any
+                const old = document.getElementById('lk-viewer');
+                if (old) old.remove();
+
+                const el = track.attach();
+                el.id = 'lk-viewer';
+                el.autoplay = true;
+                el.playsInline = true;
+                el.style.cssText = `
+                    position: absolute; top: 0; left: 0;
+                    width: 100%; height: 100%;
+                    border-radius: 12px;
+                    background: #000;
+                    z-index: 5;
+                    object-fit: contain;
+                `;
+                video.parentElement.style.position = 'relative';
+                video.parentElement.appendChild(el);
+                appendMessage('System', `${participant.identity} is sharing their screen.`);
+            }
+        });
+
+        livekitRoom.on(RoomEvent.TrackUnsubscribed, (track) => {
+            track.detach();
+            const el = document.getElementById('lk-viewer');
+            if (el) el.remove();
+            appendMessage('System', 'Screen share ended.');
+        });
+
+        livekitRoom.on(RoomEvent.Disconnected, () => {
+            livekitRoom = null;
+            appendMessage('System', 'Disconnected from LiveKit. Will reconnect...');
+            setTimeout(connectLiveKit, 2000);
+        });
+
+        await livekitRoom.connect(LIVEKIT_URL, token);
+        console.log('LiveKit connected:', livekitRoom.name);
+
+    } catch (err) {
+        console.error('LiveKit connect error:', err);
+        appendMessage('System', `LiveKit error: ${err.message}`);
     }
-    return '';
 }
 
 shareScreenBtn.addEventListener('click', async () => {
     if (shareScreenBtn.classList.contains('sharing')) {
-        stopScreenShare();
+        await stopScreenShare();
         return;
     }
 
     try {
+        await connectLiveKit();
+        if (!livekitRoom) return;
+
         const quality = qualitySelect.value;
-        
-        // Capture screen + system audio (audio: true lets browser prompt for it)
-        const displayConstraints = {
-            video: quality === '1080p60' ? { width: 1920, height: 1080, frameRate: 30 }
-                 : quality === '480p30'  ? { width: 854,  height: 480,  frameRate: 24 }
-                 :                         { width: 1280, height: 720,  frameRate: 30 },
-            audio: true // prompts user to share tab/system audio
-        };
+        const resolution = quality === '1080p60' ? { width: 1920, height: 1080, frameRate: 30 }
+                         : quality === '480p30'  ? { width: 854,  height: 480,  frameRate: 24 }
+                         :                         { width: 1280, height: 720,  frameRate: 30 };
 
-        localStream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
+        const { LocalVideoTrack, createLocalScreenTracks } = LivekitClient;
 
-        // Local preview
-        video.pause();
-        video.removeAttribute('src');
-        video.innerHTML = '';
-        video.load();
-        video.srcObject = localStream;
-        video.play().catch(() => {});
+        const tracks = await createLocalScreenTracks({
+            audio: true,
+            resolution,
+        });
+
+        for (const track of tracks) {
+            await livekitRoom.localParticipant.publishTrack(track);
+            if (track.kind === 'video') {
+                screenTrack = track;
+
+                // Local preview
+                video.pause();
+                video.removeAttribute('src');
+                video.innerHTML = '';
+                video.load();
+                const el = track.attach(video);
+
+                track.on('ended', stopScreenShare);
+            }
+        }
 
         shareScreenBtn.classList.add('sharing');
         shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
 
-        const mimeType = getSupportedMimeType();
-        const bitsPerSecond = quality === '1080p60' ? 4000000 : quality === '480p30' ? 800000 : 2000000;
-
-        mediaRecorder = new MediaRecorder(localStream, {
-            mimeType: mimeType || undefined,
-            videoBitsPerSecond: bitsPerSecond
-        });
-
-        // Announce mime type so viewers can init their MediaSource correctly
-        socket.emit('share-started', { room: currentRoom, mimeType: mediaRecorder.mimeType });
-
-        // Send chunks every 150ms — smooth playback, low latency
-        mediaRecorder.ondataavailable = async (e) => {
-            if (e.data && e.data.size > 0) {
-                const buf = await e.data.arrayBuffer();
-                socket.emit('screen-chunk', { room: currentRoom, chunk: buf });
-            }
-        };
-
-        mediaRecorder.start(150); // 150ms chunks
-
-        localStream.getVideoTracks()[0].onended = () => stopScreenShare();
-
     } catch (err) {
-        console.error("Display media error:", err);
-        appendMessage('System', 'Could not share screen. Allow screen capture and try again.');
+        console.error('Screen share error:', err);
+        appendMessage('System', 'Could not start screen share. Please allow screen capture.');
     }
 });
 
-function stopScreenShare() {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-        mediaRecorder = null;
-    }
-    if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
-        localStream = null;
+async function stopScreenShare() {
+    if (screenTrack) {
+        await livekitRoom?.localParticipant.unpublishTrack(screenTrack);
+        screenTrack.stop();
+        screenTrack = null;
     }
     video.srcObject = null;
     shareScreenBtn.classList.remove('sharing');
     shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
-    socket.emit('share-stopped', currentRoom);
-    appendMessage('System', 'Screen sharing stopped.');
 }
 
-// --- Viewer: MediaSource Extensions playback ---
-let mediaSource = null;
-let sourceBuffer = null;
-let chunkQueue = [];
-let viewerVideo = null;
+// Connect to LiveKit after joining a room
+const _origConnectToRoom = connectToRoom;
+window.connectToRoom = async function() {
+    _origConnectToRoom();
+    // slight delay to let currentRoom/username be set
+    setTimeout(connectLiveKit, 500);
+};
 
-function setupViewer(mimeType) {
-    // Remove any old viewer
-    if (viewerVideo) { viewerVideo.remove(); viewerVideo = null; }
 
-    mediaSource = new MediaSource();
-    sourceBuffer = null;
-    chunkQueue = [];
-
-    viewerVideo = document.createElement('video');
-    viewerVideo.autoplay = true;
-    viewerVideo.playsInline = true;
-    viewerVideo.muted = false;
-    viewerVideo.style.cssText = `
-        position: absolute; top: 0; left: 0;
-        width: 100%; height: 100%;
-        border-radius: 12px;
-        background: #000;
-        z-index: 5;
-        object-fit: contain;
-    `;
-    video.parentElement.style.position = 'relative';
-    video.parentElement.appendChild(viewerVideo);
-
-    viewerVideo.src = URL.createObjectURL(mediaSource);
-
-    mediaSource.addEventListener('sourceopen', () => {
-        try {
-            sourceBuffer = mediaSource.addSourceBuffer(mimeType);
-            sourceBuffer.mode = 'sequence';
-            sourceBuffer.addEventListener('updateend', flushQueue);
-            flushQueue();
-        } catch (e) {
-            console.error("SourceBuffer setup failed:", e);
-        }
-    });
-}
-
-function flushQueue() {
-    if (!sourceBuffer || sourceBuffer.updating || chunkQueue.length === 0) return;
-    try {
-        sourceBuffer.appendBuffer(chunkQueue.shift());
-    } catch (e) {
-        console.error("appendBuffer error:", e);
-        chunkQueue = []; // clear queue on error
-    }
-}
-
-socket.on('share-started', ({ mimeType }) => {
-    appendMessage('System', 'Screen share started. Connecting...');
-    if (!MediaSource.isTypeSupported(mimeType)) {
-        appendMessage('System', `Your browser doesn't support ${mimeType}. Try Chrome.`);
-        return;
-    }
-    setupViewer(mimeType);
-});
-
-socket.on('screen-chunk', (chunk) => {
-    if (!sourceBuffer) return;
-    chunkQueue.push(chunk);
-    flushQueue();
-});
-
-socket.on('share-stopped', () => {
-    if (viewerVideo) { viewerVideo.remove(); viewerVideo = null; }
-    mediaSource = null;
-    sourceBuffer = null;
-    chunkQueue = [];
-    appendMessage('System', 'Screen share ended.');
-});
 
 
 
