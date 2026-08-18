@@ -292,6 +292,11 @@ async function connectLiveKit() {
             adaptiveStream: true,
             dynacast: true,
             autoSubscribe: true,
+            reconnectPolicy: {
+                maxRetries: 10,
+                retryDelayInMs: 2000,
+                nextRetryDelayInMs: (context) => Math.min(context.retryCount * 2000, 10000),
+            },
         });
 
         function attachTrack(track, participant) {
@@ -333,10 +338,22 @@ async function connectLiveKit() {
             appendMessage('System', 'Screen share ended.');
         });
 
-        livekitRoom.on(RoomEvent.Disconnected, () => {
+        livekitRoom.on(RoomEvent.Reconnecting, () => {
+            appendMessage('System', 'LiveKit reconnecting...');
+        });
+
+        livekitRoom.on(RoomEvent.Reconnected, () => {
+            appendMessage('System', 'LiveKit reconnected.');
+        });
+
+        livekitRoom.on(RoomEvent.Disconnected, (reason) => {
+            console.warn('LiveKit disconnected:', reason);
             livekitRoom = null;
-            appendMessage('System', 'Disconnected from LiveKit. Reconnecting...');
-            setTimeout(connectLiveKit, 2000);
+            // Only reconnect on unexpected drops, not user-initiated leaves
+            if (reason !== 'CLIENT_INITIATED') {
+                appendMessage('System', 'LiveKit dropped. Reconnecting in 3s...');
+                setTimeout(connectLiveKit, 3000);
+            }
         });
 
         await livekitRoom.connect(LIVEKIT_URL, token);
