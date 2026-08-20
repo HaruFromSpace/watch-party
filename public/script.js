@@ -460,9 +460,17 @@ shareScreenBtn.addEventListener('click', async () => {
 
         const tracks = await createLocalScreenTracks({ audio: true, resolution });
 
+        // Real quality control: bitrate cap on what LiveKit actually encodes + sends
+        const videoEncoding = quality === '1080p60'
+            ? { maxBitrate: 4_000_000, maxFramerate: 30 }
+            : quality === '480p30'
+            ? { maxBitrate:   800_000, maxFramerate: 24 }
+            :   { maxBitrate: 2_000_000, maxFramerate: 30 }; // 720p default
+
         const publishedTracks = [];
         for (const track of tracks) {
-            await livekitRoom.localParticipant.publishTrack(track);
+            const opts = track.kind === 'video' ? { videoEncoding } : {};
+            await livekitRoom.localParticipant.publishTrack(track, opts);
             publishedTracks.push(track);
 
             if (track.kind === 'video') {
