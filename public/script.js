@@ -288,20 +288,23 @@ function appendMessage(sender, text) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// --- LiveKit Screen Share ---
-// Real SFU infrastructure. Works everywhere. Audio + video. No bullshit.
 const qualitySelect = document.getElementById('qualitySelect');
 
-const LIVEKIT_URL = 'wss://web-9weyycwi.livekit.cloud';
-
+// --- LiveKit Integration (Screen Share & Audio) ---
 let livekitRoom = null;
 let screenTrack = null;
+let LIVEKIT_URL = '';
 
-async function getLivekitToken(room, name) {
-    const res = await fetch(`/api/livekit-token?room=${encodeURIComponent(room)}&username=${encodeURIComponent(name)}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    return data.token;
+async function getLivekitToken(room, username) {
+    try {
+        const response = await fetch(`/api/livekit-token?room=${encodeURIComponent(room)}&username=${encodeURIComponent(username)}`);
+        const data = await response.json();
+        if (data.url) LIVEKIT_URL = data.url;
+        return data.token;
+    } catch (err) {
+        console.error('Failed to get token:', err);
+        return null;
+    }
 }
 
 async function connectLiveKit() {

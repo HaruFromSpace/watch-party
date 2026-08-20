@@ -11,8 +11,9 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
-const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
-const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'APIpkXqmG7hwJVg';
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'ack1xfkJCO8oR44x0Yex3JQB9eIbWd4KXdq0mYGP4UrB';
+const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://web-9weyycwi.livekit.cloud';
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -31,7 +32,7 @@ app.get('/api/livekit-token', async (req, res) => {
     at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
 
     const token = await at.toJwt();
-    res.json({ token });
+    res.json({ token, url: LIVEKIT_URL });
 });
 
 // Simple room state memory
