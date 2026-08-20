@@ -31,26 +31,6 @@ let currentRoom = '';
 let username = '';
 let isSyncing = false; // Flag to prevent echo loops
 
-// WebRTC State
-const peers = {};
-let localStream;
-const config = {
-    iceServers: [
-        // Standard UDP STUN Servers
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:global.stun.twilio.com:3478' },
-        { urls: 'stun:stun.cloudflare.com:3478' },
-        
-        // TURN Servers (Relays traffic when direct P2P is blocked)
-        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-        
-        // Bulletproof TURN Servers (Forced TCP / TLS) - Bypasses deep packet inspection
-        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-    ]
-};
-
 // --- Ambient Glow Logic ---
 function drawGlow() {
     if (!video.paused && !video.ended) {
@@ -75,6 +55,12 @@ function connectToRoom() {
         return;
     }
 
+    // Disconnect from old LiveKit room if switching rooms
+    if (livekitRoom && currentRoom !== room) {
+        livekitRoom.disconnect();
+        livekitRoom = null;
+    }
+
     currentRoom = room;
     username = name;
     
@@ -83,6 +69,9 @@ function connectToRoom() {
     
     socket.emit('joinRoom', currentRoom);
     appendMessage('System', `Joined the void: ${currentRoom}`);
+
+    // Connect to LiveKit for this room
+    setTimeout(connectLiveKit, 400);
 }
 
 function joinNewRoom() {
@@ -423,28 +412,30 @@ shareScreenBtn.addEventListener('click', async () => {
                          : quality === '480p30'  ? { width: 854,  height: 480,  frameRate: 24 }
                          :                         { width: 1280, height: 720,  frameRate: 30 };
 
-        const { LocalVideoTrack, createLocalScreenTracks } = LivekitClient;
+        const { createLocalScreenTracks } = LivekitClient;
 
-        const tracks = await createLocalScreenTracks({
-            audio: true,
-            resolution,
-        });
+        const tracks = await createLocalScreenTracks({ audio: true, resolution });
 
+        const publishedTracks = [];
         for (const track of tracks) {
             await livekitRoom.localParticipant.publishTrack(track);
+            publishedTracks.push(track);
+
             if (track.kind === 'video') {
                 screenTrack = track;
-
-                // Local preview
+                // Local preview — pipe directly into video element
                 video.pause();
                 video.removeAttribute('src');
                 video.innerHTML = '';
                 video.load();
-                const el = track.attach(video);
-
+                video.srcObject = new MediaStream([track.mediaStreamTrack]);
+                video.play().catch(() => {});
                 track.on('ended', stopScreenShare);
             }
         }
+
+        // Store all published tracks so stopScreenShare can unpublish all of them
+        shareScreenBtn._publishedTracks = publishedTracks;
 
         shareScreenBtn.classList.add('sharing');
         shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
@@ -456,23 +447,20 @@ shareScreenBtn.addEventListener('click', async () => {
 });
 
 async function stopScreenShare() {
-    if (screenTrack) {
-        await livekitRoom?.localParticipant.unpublishTrack(screenTrack);
-        screenTrack.stop();
-        screenTrack = null;
+    const tracks = shareScreenBtn._publishedTracks || [];
+    for (const track of tracks) {
+        try {
+            await livekitRoom?.localParticipant.unpublishTrack(track);
+            track.stop();
+        } catch (e) { /* already stopped */ }
     }
+    shareScreenBtn._publishedTracks = [];
+    screenTrack = null;
+
     video.srcObject = null;
     shareScreenBtn.classList.remove('sharing');
     shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
 }
-
-// Connect to LiveKit after joining a room
-const _origConnectToRoom = connectToRoom;
-window.connectToRoom = async function() {
-    _origConnectToRoom();
-    // slight delay to let currentRoom/username be set
-    setTimeout(connectLiveKit, 500);
-};
 
 
 
