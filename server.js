@@ -150,28 +150,47 @@ app.get('/api/gifs', (req, res) => {
     });
 });
 
-// --- WebRTC Signaling ---
-io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+// Track participants per room: room -> { socketId: username }
+const roomParticipants = {};
 
-    socket.on('joinRoom', (room) => {
+io.on('connection', (socket) => {
+    let currentRoom = null;
+    let currentUser = null;
+
+    socket.on('joinRoom', ({ room, username }) => {
+        // Support legacy string-only joinRoom calls
+        if (typeof room === 'string' && typeof username === 'undefined') {
+            username = 'Anonymous';
+        }
+
+        currentRoom = room;
+        currentUser = username || 'Anonymous';
+
         socket.join(room);
-        console.log(`Socket ${socket.id} joined room ${room}`);
-        
+
+        // Track participant
+        if (!roomParticipants[room]) roomParticipants[room] = {};
+        roomParticipants[room][socket.id] = currentUser;
+
+        // Send current state to new joiner (includes videoUrl)
         if (roomState[room]) {
             socket.emit('syncState', roomState[room]);
         }
-        
-        socket.to(room).emit('userJoined', socket.id);
+
+        // Broadcast updated participant list to whole room
+        const participants = Object.values(roomParticipants[room]);
+        io.to(room).emit('participantUpdate', participants);
     });
 
     // Video Sync Events
     socket.on('play', ({ room, time }) => {
-        roomState[room] = { playing: true, time, lastUpdate: Date.now() };
+        if (!roomState[room]) roomState[room] = {};
+        Object.assign(roomState[room], { playing: true, time, lastUpdate: Date.now() });
         socket.to(room).emit('play', time);
     });
     socket.on('pause', ({ room, time }) => {
-        roomState[room] = { playing: false, time, lastUpdate: Date.now() };
+        if (!roomState[room]) roomState[room] = {};
+        Object.assign(roomState[room], { playing: false, time, lastUpdate: Date.now() });
         socket.to(room).emit('pause', time);
     });
     socket.on('seek', ({ room, time }) => {
@@ -182,13 +201,30 @@ io.on('connection', (socket) => {
         socket.to(room).emit('seek', time);
     });
 
+    // Video URL sync — when host loads a new video, everyone gets it
+    socket.on('videoUrlChange', ({ room, url }) => {
+        if (!roomState[room]) roomState[room] = {};
+        roomState[room].videoUrl = url;
+        roomState[room].time = 0;
+        roomState[room].playing = false;
+        socket.to(room).emit('videoUrlChange', url);
+    });
+
     // Chat Events
     socket.on('chatMessage', ({ room, message, user }) => {
         io.to(room).emit('chatMessage', { message, user });
     });
 
     socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
+        if (currentRoom && roomParticipants[currentRoom]) {
+            delete roomParticipants[currentRoom][socket.id];
+            const participants = Object.values(roomParticipants[currentRoom]);
+            io.to(currentRoom).emit('participantUpdate', participants);
+            if (participants.length === 0) {
+                delete roomParticipants[currentRoom];
+                delete roomState[currentRoom];
+            }
+        }
     });
 });
 

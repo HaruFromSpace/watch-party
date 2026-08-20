@@ -428,3 +428,50 @@ video {
 .enter-btn:hover {
     background: #e2e8f0;
 }
+
+/* --- Mobile Layout --- */
+@media (max-width: 768px) {
+    .main-content {
+        flex-direction: column;
+    }
+
+    .video-section {
+        width: 100%;
+        min-height: 240px;
+    }
+
+    .chat-section {
+        width: 100%;
+        height: 40vh;
+        border-left: none;
+        border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .header {
+        padding: 10px 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .header-controls {
+        gap: 6px;
+    }
+
+    .action-btn, .join-btn {
+        padding: 8px 12px;
+        font-size: 0.78rem;
+    }
+
+    .room-info {
+        font-size: 0.85rem;
+    }
+
+    .video-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .logo {
+        font-size: 1.2rem;
+    }
+}

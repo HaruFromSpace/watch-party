@@ -9,7 +9,7 @@ const socket = io({
 // Auto-rejoin room if socket drops and reconnects
 socket.on('connect', () => {
     if (currentRoom) {
-        socket.emit('joinRoom', currentRoom);
+        socket.emit('joinRoom', { room: currentRoom, username });
     }
 });
 
@@ -33,9 +33,8 @@ let isSyncing = false; // Flag to prevent echo loops
 
 // --- Ambient Glow Logic ---
 function drawGlow() {
-    if (!video.paused && !video.ended) {
-        // Draw the current video frame onto the canvas
-        // The canvas is blurred via CSS, creating the ambient glow effect
+    // Skip glow during screen share — srcObject is live capture, not video content
+    if (!video.paused && !video.ended && !video.srcObject) {
         ambientGlow.width = video.videoWidth || 640;
         ambientGlow.height = video.videoHeight || 360;
         glowCtx.drawImage(video, 0, 0, ambientGlow.width, ambientGlow.height);
@@ -67,10 +66,10 @@ function connectToRoom() {
     roomNameDisplay.textContent = currentRoom;
     joinModal.classList.add('hidden');
     
-    socket.emit('joinRoom', currentRoom);
+    // Send username so server can track participants
+    socket.emit('joinRoom', { room: currentRoom, username });
     appendMessage('System', `Joined the void: ${currentRoom}`);
 
-    // Connect to LiveKit for this room
     setTimeout(connectLiveKit, 400);
 }
 
@@ -94,9 +93,9 @@ function copyInviteLink() {
 window.onload = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
-    if (roomParam) {
-        roomInput.value = roomParam;
-    }
+    const userParam = urlParams.get('user');
+    if (roomParam) roomInput.value = roomParam;
+    if (userParam) usernameInput.value = userParam;
 };
 
 // --- Video Proxy Logic ---
@@ -111,6 +110,8 @@ async function changeVideo() {
         video.srcObject = null;
         video.src = proxyUrl;
         
+        // Sync the URL to all viewers so they load it too
+        socket.emit('videoUrlChange', { room: currentRoom, url });
         socket.emit('chatMessage', { room: currentRoom, message: `Loaded new video source.`, user: 'System' });
     }
 }
@@ -131,13 +132,27 @@ video.addEventListener('seeked', () => {
 
 socket.on('syncState', (state) => {
     isSyncing = true;
-    video.currentTime = state.time;
+    // Load video URL if we don't have one yet
+    if (state.videoUrl && !video.src.includes('/proxy')) {
+        const proxyUrl = `/proxy?url=${encodeURIComponent(state.videoUrl)}`;
+        video.srcObject = null;
+        video.src = proxyUrl;
+    }
+    video.currentTime = state.time || 0;
     if (state.playing) {
         video.play().catch(e => console.log('Autoplay blocked', e));
     } else {
         video.pause();
     }
     setTimeout(() => isSyncing = false, 100);
+});
+
+// Someone loaded a new video — load it on our end too
+socket.on('videoUrlChange', (url) => {
+    const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
+    video.srcObject = null;
+    video.src = proxyUrl;
+    appendMessage('System', 'Host loaded a new video.');
 });
 
 socket.on('play', (time) => {
@@ -158,6 +173,15 @@ socket.on('seek', (time) => {
     isSyncing = true;
     video.currentTime = time;
     setTimeout(() => isSyncing = false, 100);
+});
+
+// Participant list
+const participantCount = document.getElementById('participantCount');
+socket.on('participantUpdate', (participants) => {
+    if (participantCount) {
+        participantCount.textContent = `👥 ${participants.length}`;
+        participantCount.title = participants.join(', ');
+    }
 });
 
 // --- Chat Logic ---
@@ -414,9 +438,18 @@ shareScreenBtn.addEventListener('click', async () => {
         return;
     }
 
+    // Loading state while browser picker opens + LiveKit connects
+    const btnSpan = shareScreenBtn.querySelector('.btn-content');
+    btnSpan.textContent = 'Starting...';
+    shareScreenBtn.disabled = true;
+
     try {
         await connectLiveKit();
-        if (!livekitRoom) return;
+        if (!livekitRoom) {
+            btnSpan.textContent = 'Share Screen';
+            shareScreenBtn.disabled = false;
+            return;
+        }
 
         const quality = qualitySelect.value;
         const resolution = quality === '1080p60' ? { width: 1920, height: 1080, frameRate: 30 }
@@ -450,9 +483,12 @@ shareScreenBtn.addEventListener('click', async () => {
 
         shareScreenBtn.classList.add('sharing');
         shareScreenBtn.querySelector('.btn-content').textContent = 'Stop Sharing';
+        shareScreenBtn.disabled = false;
 
     } catch (err) {
         console.error('Screen share error:', err);
+        shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
+        shareScreenBtn.disabled = false;
         appendMessage('System', 'Could not start screen share. Please allow screen capture.');
     }
 });
