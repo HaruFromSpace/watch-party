@@ -300,14 +300,31 @@ async function connectLiveKit() {
         });
 
         let viewerAudioEl = null;
+        let audioBlocked = false;
+
+        function showUnmutePrompt() {
+            if (document.getElementById('unmute-prompt')) return;
+            const prompt = document.createElement('div');
+            prompt.id = 'unmute-prompt';
+            prompt.style.cssText = `
+                position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+                background: #e94560; color: white; padding: 10px 20px;
+                border-radius: 8px; font-weight: bold; cursor: pointer; z-index: 9999;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            `;
+            prompt.textContent = '🔇 Click here to unmute audio';
+            prompt.onclick = () => {
+                if (viewerAudioEl) viewerAudioEl.play().catch(() => {});
+                prompt.remove();
+            };
+            document.body.appendChild(prompt);
+        }
 
         function attachTrack(track, participant) {
             if (track.kind === 'video') {
-                // Remove old overlay if any
                 const old = document.getElementById('lk-viewer');
                 if (old) old.remove();
 
-                // Pipe directly into the existing video element — preserves layout
                 video.pause();
                 video.removeAttribute('src');
                 video.innerHTML = '';
@@ -316,18 +333,25 @@ async function connectLiveKit() {
                 video.play().catch(() => {});
                 appendMessage('System', `${participant.identity} is sharing their screen.`);
             } else if (track.kind === 'audio') {
-                // Audio from screen share — create a hidden audio element
-                if (viewerAudioEl) viewerAudioEl.remove();
-                viewerAudioEl = track.attach();
+                if (viewerAudioEl) { viewerAudioEl.pause(); viewerAudioEl.remove(); }
+                viewerAudioEl = document.createElement('audio');
+                viewerAudioEl.srcObject = new MediaStream([track.mediaStreamTrack]);
+                viewerAudioEl.autoplay = true;
                 viewerAudioEl.style.display = 'none';
                 document.body.appendChild(viewerAudioEl);
+                viewerAudioEl.play().catch(() => {
+                    // Browser blocked autoplay — show click-to-unmute prompt
+                    showUnmutePrompt();
+                });
             }
         }
 
         function detachAll() {
             const old = document.getElementById('lk-viewer');
             if (old) old.remove();
-            if (viewerAudioEl) { viewerAudioEl.remove(); viewerAudioEl = null; }
+            const prompt = document.getElementById('unmute-prompt');
+            if (prompt) prompt.remove();
+            if (viewerAudioEl) { viewerAudioEl.pause(); viewerAudioEl.remove(); viewerAudioEl = null; }
             video.pause();
             video.srcObject = null;
         }
@@ -336,7 +360,7 @@ async function connectLiveKit() {
             attachTrack(track, participant);
         });
 
-        // Fallback: if track is published after we join
+        // Force-subscribe to all published tracks (audio + video)
         livekitRoom.on(RoomEvent.TrackPublished, (publication, participant) => {
             publication.setSubscribed(true);
         });
@@ -357,7 +381,6 @@ async function connectLiveKit() {
         livekitRoom.on(RoomEvent.Disconnected, (reason) => {
             console.warn('LiveKit disconnected:', reason);
             livekitRoom = null;
-            // Only reconnect on unexpected drops, not user-initiated leaves
             if (reason !== 'CLIENT_INITIATED') {
                 appendMessage('System', 'LiveKit dropped. Reconnecting in 3s...');
                 setTimeout(connectLiveKit, 3000);
@@ -367,12 +390,13 @@ async function connectLiveKit() {
         await livekitRoom.connect(LIVEKIT_URL, token);
         console.log('LiveKit connected:', livekitRoom.name);
 
-        // Check for already-publishing participants (joined late case)
+        // Handle already-publishing participants (viewer joined late)
         livekitRoom.remoteParticipants.forEach((participant) => {
             participant.trackPublications.forEach((publication) => {
                 if (publication.isSubscribed && publication.track) {
                     attachTrack(publication.track, participant);
-                } else if (publication.kind === 'video') {
+                } else {
+                    // Subscribe to both video AND audio
                     publication.setSubscribed(true);
                 }
             });
