@@ -78,6 +78,19 @@ function joinNewRoom() {
     joinModal.classList.remove('hidden');
 }
 
+function copyInviteLink() {
+    if (!currentRoom) return;
+    const url = `${location.origin}?room=${encodeURIComponent(currentRoom)}`;
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = document.getElementById('copyInviteBtn');
+        const span = btn.querySelector('.btn-content');
+        span.textContent = 'Copied!';
+        setTimeout(() => span.textContent = 'Copy Invite', 2000);
+    }).catch(() => {
+        prompt('Copy this link:', url);
+    });
+}
+
 window.onload = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
@@ -87,15 +100,13 @@ window.onload = () => {
 };
 
 // --- Video Proxy Logic ---
-function changeVideo() {
+async function changeVideo() {
     const url = videoUrlInput.value.trim();
     if (url) {
-        // Route through our backend proxy
         const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
         
-        // Clear any WebRTC stream
         if (shareScreenBtn.classList.contains('sharing')) {
-            stopScreenShare();
+            await stopScreenShare();
         }
         video.srcObject = null;
         video.src = proxyUrl;

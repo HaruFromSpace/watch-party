@@ -187,17 +187,6 @@ io.on('connection', (socket) => {
         io.to(room).emit('chatMessage', { message, user });
     });
 
-    // MediaRecorder Chunked Stream Relay (works through all firewalls)
-    socket.on('share-started', ({ room, mimeType }) => {
-        socket.to(room).emit('share-started', { mimeType });
-    });
-    socket.on('screen-chunk', ({ room, chunk }) => {
-        socket.to(room).emit('screen-chunk', chunk);
-    });
-    socket.on('share-stopped', (room) => {
-        socket.to(room).emit('share-stopped');
-    });
-
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
