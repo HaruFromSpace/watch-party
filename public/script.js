@@ -469,7 +469,8 @@ shareScreenBtn.addEventListener('click', async () => {
 
         const publishedTracks = [];
         for (const track of tracks) {
-            const opts = track.kind === 'video' ? { videoEncoding } : {};
+            // Force simulcast OFF so LiveKit doesn't auto-downgrade to 360p on network hiccups
+            const opts = track.kind === 'video' ? { videoEncoding, simulcast: false } : {};
             await livekitRoom.localParticipant.publishTrack(track, opts);
             publishedTracks.push(track);
 
