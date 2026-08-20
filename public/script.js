@@ -452,8 +452,8 @@ shareScreenBtn.addEventListener('click', async () => {
         }
 
         const quality = qualitySelect.value;
-        const resolution = quality === '1080p60' ? { width: 1920, height: 1080, frameRate: 30 }
-                         : quality === '480p30'  ? { width: 854,  height: 480,  frameRate: 24 }
+        const resolution = quality === '1080p60' ? { width: 1920, height: 1080, frameRate: 60 }
+                         : quality === '480p30'  ? { width: 854,  height: 480,  frameRate: 30 }
                          :                         { width: 1280, height: 720,  frameRate: 30 };
 
         const { createLocalScreenTracks } = LivekitClient;
@@ -462,10 +462,10 @@ shareScreenBtn.addEventListener('click', async () => {
 
         // Real quality control: bitrate cap on what LiveKit actually encodes + sends
         const videoEncoding = quality === '1080p60'
-            ? { maxBitrate: 4_000_000, maxFramerate: 30 }
+            ? { maxBitrate: 8_000_000, maxFramerate: 60 } // Uncapped for gigabit internet
             : quality === '480p30'
-            ? { maxBitrate:   800_000, maxFramerate: 24 }
-            :   { maxBitrate: 2_000_000, maxFramerate: 30 }; // 720p default
+            ? { maxBitrate: 1_000_000, maxFramerate: 30 }
+            :   { maxBitrate: 3_000_000, maxFramerate: 30 }; // 720p default
 
         const publishedTracks = [];
         for (const track of tracks) {
