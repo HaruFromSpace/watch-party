@@ -346,7 +346,17 @@ socket.on('reaction', (data) => {
     const wrapper = document.querySelector('.video-wrapper');
     const el = document.createElement('div');
     el.className = 'floating-reaction';
-    el.textContent = data.emoji;
+    
+    if (data.emoji.startsWith('/emojis/')) {
+        const img = document.createElement('img');
+        img.src = data.emoji;
+        img.style.width = '40px';
+        img.style.height = '40px';
+        el.appendChild(img);
+    } else {
+        el.textContent = data.emoji;
+    }
+
     el.style.left = (10 + Math.random() * 80) + '%';
     wrapper.appendChild(el);
     setTimeout(() => el.remove(), 2500);

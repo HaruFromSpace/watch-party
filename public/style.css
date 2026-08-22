@@ -438,7 +438,18 @@ select.glow-input option {
 }
 
 .reaction-btn:hover {
-    transform: scale(1.15);
+    transform: scale(1.3) translateY(-2px);
+    z-index: 2;
+}
+
+.reaction-btn img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.reaction-btn:hover {
     background: var(--primary);
     border-color: var(--primary);
 }
