@@ -74,7 +74,7 @@
     <div id="login-section">
         <h2>Admin Login</h2>
         <input type="password" id="passInput" placeholder="Enter Admin Password">
-        <button onclick="login()">Login</button>
+        <button id="loginBtn" onclick="login()">Login</button>
     </div>
 
     <div id="admin-section">
@@ -86,23 +86,37 @@
     <script>
         let password = '';
 
+        document.getElementById('passInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') login();
+        });
+
         async function login() {
             password = document.getElementById('passInput').value;
-            const res = await fetch('/api/admin/rooms?pass=' + password);
-            if (res.ok) {
-                document.getElementById('login-section').style.display = 'none';
-                document.getElementById('admin-section').style.display = 'block';
-                renderRooms(await res.json());
-            } else {
-                alert('Invalid password');
+            const btn = document.getElementById('loginBtn');
+            btn.textContent = 'Loading...';
+            try {
+                const res = await fetch('/api/admin/rooms?pass=' + password);
+                if (res.ok) {
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('admin-section').style.display = 'block';
+                    renderRooms(await res.json());
+                } else {
+                    alert('Invalid password or server not ready yet. Status: ' + res.status);
+                    btn.textContent = 'Login';
+                }
+            } catch (err) {
+                alert('Connection error. Render might still be deploying.');
+                btn.textContent = 'Login';
             }
         }
 
         async function fetchRooms() {
-            const res = await fetch('/api/admin/rooms?pass=' + password);
-            if (res.ok) {
-                renderRooms(await res.json());
-            }
+            try {
+                const res = await fetch('/api/admin/rooms?pass=' + password);
+                if (res.ok) {
+                    renderRooms(await res.json());
+                }
+            } catch(e) {}
         }
 
         function renderRooms(rooms) {
