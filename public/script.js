@@ -831,3 +831,44 @@ if (toggleChatEmojisBtn) {
         chatEmojiPanel.classList.toggle('hidden');
     });
 }
+
+// --- Idle Kick Logic (Netflix style) ---
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes of absolute zero interaction
+let idleTimer;
+
+function handleIdleTimeout() {
+    // Drop all expensive connections
+    if (livekitRoom) {
+        livekitRoom.disconnect();
+        livekitRoom = null;
+    }
+    if (socket) {
+        socket.disconnect();
+    }
+    if (player) {
+        player.pause();
+    }
+
+    // Replace screen with idle message
+    document.body.innerHTML = `
+        <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #07090f; color: white; font-family: sans-serif;">
+            <h1 style="margin-bottom: 20px;">Are you still watching?</h1>
+            <p style="color: #8b949e; margin-bottom: 30px;">You were disconnected due to 30 minutes of inactivity to save resources.</p>
+            <button onclick="location.reload()" style="padding: 12px 24px; background: #6366f1; border: none; border-radius: 8px; color: white; font-size: 1.1rem; cursor: pointer;">Reconnect</button>
+        </div>
+    `;
+}
+
+function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(handleIdleTimeout, IDLE_TIMEOUT_MS);
+}
+
+// Listen for any user interaction to keep the session alive
+['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'].forEach(evt => {
+    window.addEventListener(evt, resetIdleTimer);
+});
+
+// Start the timer
+resetIdleTimer();
+
