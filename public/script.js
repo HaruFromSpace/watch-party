@@ -221,6 +221,25 @@ socket.on('participantUpdate', (participants) => {
             circle.style.zIndex = 100 - index;
             participantAvatars.appendChild(circle);
         });
+
+        // Resource management: Disable LiveKit screen share if alone
+        if (uniqueParticipants.length <= 1) {
+            if (shareScreenBtn.classList.contains('sharing')) {
+                stopScreenShare();
+                appendMessage('System', 'Screen share stopped to save resources (room is empty).');
+            }
+            shareScreenBtn.disabled = true;
+            shareScreenBtn.style.opacity = '0.5';
+            shareScreenBtn.title = "Wait for someone to join before sharing";
+            shareScreenBtn.querySelector('.btn-content').textContent = 'Waiting to Share';
+        } else {
+            shareScreenBtn.disabled = false;
+            shareScreenBtn.style.opacity = '1';
+            shareScreenBtn.title = "Share Screen";
+            if (!shareScreenBtn.classList.contains('sharing')) {
+                shareScreenBtn.querySelector('.btn-content').textContent = 'Share 共享屏幕';
+            }
+        }
     }
 });
 

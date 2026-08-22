@@ -793,3 +793,30 @@ img.chat-emoji {
     border-radius: 50%;
     margin: 0 2px;
 }
+
+/* --- UI CLUNKINESS FIXES --- */
+.chat-input-area .action-btn {
+    flex-shrink: 0 !important;
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.chat-input-area .send-btn {
+    flex-shrink: 0 !important;
+    padding: 0 20px !important;
+    white-space: nowrap !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 22px !important;
+}
+
+.chat-input-area #chatInput {
+    flex: 1;
+    min-width: 0;
+}
