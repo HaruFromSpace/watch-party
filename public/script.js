@@ -83,8 +83,6 @@ function connectToRoom() {
     // Send username so server can track participants
     socket.emit('joinRoom', { room: currentRoom, username });
     appendMessage('System', `Joined the void: ${currentRoom}`);
-
-    setTimeout(connectLiveKit, 400);
 }
 
 function joinNewRoom() {
@@ -222,17 +220,26 @@ socket.on('participantUpdate', (participants) => {
             participantAvatars.appendChild(circle);
         });
 
-        // Resource management: Disable LiveKit screen share if alone
+                // Resource management: Disable LiveKit screen share and connection if alone
         if (uniqueParticipants.length <= 1) {
             if (shareScreenBtn.classList.contains('sharing')) {
                 stopScreenShare();
                 appendMessage('System', 'Screen share stopped to save resources (room is empty).');
+            }
+            if (livekitRoom) {
+                console.log('Disconnecting LiveKit to save minutes...');
+                livekitRoom.disconnect();
+                livekitRoom = null;
             }
             shareScreenBtn.disabled = true;
             shareScreenBtn.style.opacity = '0.5';
             shareScreenBtn.title = "Wait for someone to join before sharing";
             shareScreenBtn.querySelector('.btn-content').textContent = 'Waiting to Share';
         } else {
+            if (!livekitRoom) {
+                console.log('Other user joined. Connecting LiveKit...');
+                connectLiveKit();
+            }
             shareScreenBtn.disabled = false;
             shareScreenBtn.style.opacity = '1';
             shareScreenBtn.title = "Share Screen";
@@ -591,7 +598,7 @@ shareScreenBtn.addEventListener('click', async () => {
     try {
         await connectLiveKit();
         if (!livekitRoom) {
-            btnSpan.textContent = 'Share Screen';
+            btnSpan.textContent = 'Share 共享屏幕';
             shareScreenBtn.disabled = false;
             return;
         }
@@ -641,7 +648,7 @@ shareScreenBtn.addEventListener('click', async () => {
 
     } catch (err) {
         console.error('Screen share error:', err);
-        shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
+        shareScreenBtn.querySelector('.btn-content').textContent = 'Share 共享屏幕';
         shareScreenBtn.disabled = false;
         appendMessage('System', 'Could not start screen share. Please allow screen capture.');
     }
@@ -664,7 +671,7 @@ async function stopScreenShare() {
     video.load(); // This forces the browser to show the offline.jpg poster again
     
     shareScreenBtn.classList.remove('sharing');
-    shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
+    shareScreenBtn.querySelector('.btn-content').textContent = 'Share 共享屏幕';
 }
 
 
