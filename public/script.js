@@ -659,7 +659,7 @@ document.querySelectorAll('.soundboard-btn').forEach(btn => {
 socket.on('soundboard', (data) => {
     if (data.user !== username) {
         playSound(data.sound);
-        appendMessage('System', ${data.user} played );
+        appendMessage('System', `${data.user} played ${data.sound}`);
     }
 });
 
