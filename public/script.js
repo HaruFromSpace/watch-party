@@ -237,7 +237,7 @@ function renderStickers(urls) {
     stickerGrid.innerHTML = '';
     urls.forEach(url => {
         const img = document.createElement('img');
-        img.src = url;
+        img.src = `/proxy?url=${encodeURIComponent(url)}`;
         img.addEventListener('click', () => {
             if (currentRoom) {
                 socket.emit('chatMessage', { room: currentRoom, message: url, user: username });
@@ -305,7 +305,7 @@ function appendMessage(sender, text) {
     
     let contentHtml = '';
     if (isImage) {
-        contentHtml = `<img src="${text}" style="max-width: 100%; border-radius: 8px; margin-top: 8px; display: block;">`;
+        contentHtml = `<img src="/proxy?url=${encodeURIComponent(text)}" style="max-width: 100%; border-radius: 8px; margin-top: 8px; display: block;">`;
     } else {
         // Escape HTML to prevent XSS, but allow normal text
         const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
