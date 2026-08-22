@@ -417,6 +417,16 @@ async function connectLiveKit() {
             video.srcObject = null;
         }
 
+        livekitRoom.on(RoomEvent.ParticipantConnected, (participant) => {
+            const displayName = participant.identity.split('_')[0];
+            appendMessage('System', `${displayName} joined the room.`);
+        });
+
+        livekitRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
+            const displayName = participant.identity.split('_')[0];
+            appendMessage('System', `${displayName} left the room.`);
+        });
+
         livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
             attachTrack(track, participant);
         });
