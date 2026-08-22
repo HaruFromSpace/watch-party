@@ -129,14 +129,14 @@
             rooms.forEach(room => {
                 const div = document.createElement('div');
                 div.className = 'room-row';
-                div.innerHTML = \
+                div.innerHTML = `
                     <div>
-                        <strong>\</strong><br>
-                        Participants: \<br>
-                        Created: \
+                        <strong>${room.name}</strong><br>
+                        Participants: ${room.numParticipants}<br>
+                        Created: ${new Date(room.creationTime * 1000).toLocaleString()}
                     </div>
-                    <button class="kill-btn" onclick="killRoom('\')">Kill Room</button>
-                \;
+                    <button class="kill-btn" onclick="killRoom('${room.name}')">Kill Room</button>
+                `;
                 container.appendChild(div);
             });
         }
