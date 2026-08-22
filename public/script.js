@@ -742,3 +742,32 @@ socket.on('laser', (data) => {
         updateLaser(data.user, data.x, data.y);
     }
 });
+
+// WeChat Emoji Picker Initialization
+const wechatEmojiGrid = document.getElementById('wechatEmojiGrid');
+const emojiPickerPanel = document.getElementById('emojiPickerPanel');
+const expandEmojisBtn = document.getElementById('expandEmojisBtn');
+
+// Add emojis 0 to 99
+if (wechatEmojiGrid) {
+    for (let i = 0; i <= 99; i++) {
+        const img = document.createElement('img');
+        img.src = '/emojis/' + i + '.gif';
+        img.alt = 'emoji ' + i;
+        img.loading = 'lazy'; // Improve performance
+        img.addEventListener('click', () => {
+            if (currentRoom) {
+                socket.emit('reaction', { room: currentRoom, emoji: img.src });
+                // Optional: send multiple, or close after sending
+                // emojiPickerPanel.classList.add('hidden');
+            }
+        });
+        wechatEmojiGrid.appendChild(img);
+    }
+}
+
+if (expandEmojisBtn) {
+    expandEmojisBtn.addEventListener('click', () => {
+        emojiPickerPanel.classList.toggle('hidden');
+    });
+}
