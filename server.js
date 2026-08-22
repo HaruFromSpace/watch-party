@@ -230,6 +230,15 @@ io.on('connection', (socket) => {
         io.to(room).emit('reaction', { emoji });
     });
 
+    socket.on('soundboard', ({ room, sound, user }) => {
+        io.to(room).emit('soundboard', { sound, user });
+    });
+
+    socket.on('laser', ({ room, x, y, user }) => {
+        // We use volatile because laser pointer updates are high frequency and it's okay to drop some
+        socket.volatile.to(room).emit('laser', { x, y, user });
+    });
+
     socket.on('disconnect', () => {
         if (currentRoom && roomParticipants[currentRoom]) {
             delete roomParticipants[currentRoom][socket.id];

@@ -638,3 +638,97 @@ async function stopScreenShare() {
 
 
 
+
+// --- Soundboard Logic ---
+const sounds = {
+    'vine-boom': 'https://www.myinstants.com/media/sounds/vine-boom.mp3',
+    'bruh': 'https://www.myinstants.com/media/sounds/movie_1.mp3',
+    'applause': 'https://www.myinstants.com/media/sounds/applause.mp3'
+};
+
+document.querySelectorAll('.soundboard-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const sound = btn.getAttribute('data-sound');
+        if (currentRoom) {
+            socket.emit('soundboard', { room: currentRoom, sound, user: username });
+            playSound(sound); // play locally immediately
+        }
+    });
+});
+
+socket.on('soundboard', (data) => {
+    if (data.user !== username) {
+        playSound(data.sound);
+        appendMessage('System', ${data.user} played );
+    }
+});
+
+function playSound(soundKey) {
+    if (sounds[soundKey]) {
+        const audio = new Audio(sounds[soundKey]);
+        audio.volume = 0.5;
+        audio.play().catch(e => console.log('Soundplay prevented', e));
+    }
+}
+
+// --- Laser Pointer Logic ---
+const videoWrapper = document.querySelector('.video-wrapper');
+const laserContainer = document.getElementById('laserContainer');
+let lastLaserEmit = 0;
+const LASER_THROTTLE = 50; // ms
+
+videoWrapper.addEventListener('mousemove', (e) => {
+    if (e.shiftKey && currentRoom) {
+        const rect = videoWrapper.getBoundingClientRect();
+        // Calculate percentage
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        
+        // Render locally instantly for no lag
+        updateLaser(username, x, y);
+
+        const now = Date.now();
+        if (now - lastLaserEmit > LASER_THROTTLE) {
+            socket.emit('laser', { room: currentRoom, x, y, user: username });
+            lastLaserEmit = now;
+        }
+    }
+});
+
+const activeLasers = {};
+
+function updateLaser(user, x, y) {
+    let pointer = activeLasers[user];
+    if (!pointer) {
+        const dot = document.createElement('div');
+        dot.className = 'laser-pointer';
+        
+        const label = document.createElement('div');
+        label.className = 'laser-label';
+        label.textContent = user;
+        
+        laserContainer.appendChild(dot);
+        laserContainer.appendChild(label);
+        
+        pointer = { dot, label, timeout: null };
+        activeLasers[user] = pointer;
+    }
+    
+    pointer.dot.style.left = `${x}%`;
+    pointer.dot.style.top = `${y}%`;
+    pointer.label.style.left = `${x}%`;
+    pointer.label.style.top = `${y}%`;
+    
+    clearTimeout(pointer.timeout);
+    pointer.timeout = setTimeout(() => {
+        pointer.dot.remove();
+        pointer.label.remove();
+        delete activeLasers[user];
+    }, 500);
+}
+
+socket.on('laser', (data) => {
+    if (data.user !== username) {
+        updateLaser(data.user, data.x, data.y);
+    }
+});
