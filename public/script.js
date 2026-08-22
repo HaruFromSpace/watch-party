@@ -205,11 +205,22 @@ socket.on('seek', (time) => {
 });
 
 // Participant list
-const participantCount = document.getElementById('participantCount');
+const participantAvatars = document.getElementById('participantAvatars');
 socket.on('participantUpdate', (participants) => {
-    if (participantCount) {
-        participantCount.textContent = `👥 ${participants.length}`;
-        participantCount.title = participants.join(', ');
+    if (participantAvatars) {
+        participantAvatars.innerHTML = '';
+        // Deduplicate in case of multi-tabs with the same username
+        const uniqueParticipants = [...new Set(participants)];
+        uniqueParticipants.forEach((name, index) => {
+            const initial = name ? name.charAt(0).toUpperCase() : '?';
+            const circle = document.createElement('div');
+            circle.className = 'avatar-circle';
+            circle.textContent = initial;
+            circle.setAttribute('data-name', name);
+            // Ensure proper z-index stacking so the first is on top
+            circle.style.zIndex = 100 - index;
+            participantAvatars.appendChild(circle);
+        });
     }
 });
 

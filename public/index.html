@@ -18,8 +18,10 @@
         <header class="header">
             <div class="logo">SYNC.</div>
             <div class="room-info">
-                Room <span id="roomNameDisplay">...</span>
-                <span id="participantCount" title="People in room" style="margin-left:10px;font-size:0.8em;opacity:0.7;cursor:default;"></span>
+                <div style="display: flex; gap: 6px; align-items: center; margin-right: 8px;">
+                    Room <span id="roomNameDisplay">...</span>
+                </div>
+                <div id="participantAvatars" class="avatar-stack"></div>
             </div>
             <div class="header-controls">
                 <button class="action-btn share-btn magnetic" id="shareScreenBtn">

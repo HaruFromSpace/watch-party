@@ -56,16 +56,73 @@ body {
     font-size: 0.9rem;
     color: var(--text-secondary);
     background: var(--bg-surface);
-    padding: 6px 16px;
+    padding: 6px 12px 6px 16px;
     border-radius: 20px;
     border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
 }
 
 .room-info span {
     color: var(--text-primary);
     font-family: 'Space Grotesk', monospace;
     font-weight: 700;
-    margin-left: 6px;
+}
+
+.avatar-stack {
+    display: flex;
+    align-items: center;
+}
+
+.avatar-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 2px solid var(--bg-surface);
+    margin-left: -8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: transform 0.2s, z-index 0.2s;
+    position: relative;
+    cursor: default;
+    text-transform: uppercase;
+}
+
+.avatar-circle:first-child {
+    margin-left: 0;
+}
+
+.avatar-circle:hover {
+    transform: translateY(-2px) scale(1.1);
+    z-index: 10 !important;
+}
+
+.avatar-circle::after {
+    content: attr(data-name);
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    font-weight: 400;
+}
+
+.avatar-circle:hover::after {
+    opacity: 1;
 }
 
 .header-controls {
