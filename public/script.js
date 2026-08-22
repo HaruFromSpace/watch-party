@@ -437,6 +437,8 @@ async function connectLiveKit() {
                 video.srcObject = new MediaStream([track.mediaStreamTrack]);
                 video.play().catch(() => {});
                 
+                document.querySelector('.video-wrapper').classList.add('is-live');
+
                 const displayName = participant.identity.split('_')[0];
                 appendMessage('System', `${displayName} is sharing their screen.`);
             } else if (track.kind === 'audio') {
@@ -463,6 +465,7 @@ async function connectLiveKit() {
             if (viewerAudioEl) { viewerAudioEl.pause(); viewerAudioEl.remove(); viewerAudioEl = null; }
             video.pause();
             video.srcObject = null;
+            document.querySelector('.video-wrapper').classList.remove('is-live');
         }
 
         livekitRoom.on(RoomEvent.ParticipantConnected, (participant) => {

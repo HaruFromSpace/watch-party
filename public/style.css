@@ -176,6 +176,10 @@ button {
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.video-wrapper.is-live {
+    background-image: none;
+}
+
 .plyr {
     border-radius: 12px;
     overflow: hidden;
@@ -215,6 +219,15 @@ video {
     border-color: rgba(255, 255, 255, 0.3);
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05);
     background: rgba(255, 255, 255, 0.03);
+}
+
+select.glow-input {
+    color-scheme: dark;
+}
+
+select.glow-input option {
+    background: #121216;
+    color: #ffffff;
 }
 
 .url-input-group {
