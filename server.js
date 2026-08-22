@@ -25,8 +25,10 @@ app.get('/api/livekit-token', async (req, res) => {
         return res.status(500).json({ error: 'LiveKit API keys not configured on server.' });
     }
 
+    // Add random suffix to allow multiple tabs/windows for the same user without kicking each other
+    const livekitIdentity = `${username}_${Math.random().toString(36).substr(2, 6)}`;
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-        identity: username,
+        identity: livekitIdentity,
         ttl: '6h',
     });
     at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });

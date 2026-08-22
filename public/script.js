@@ -388,7 +388,9 @@ async function connectLiveKit() {
 
                 video.srcObject = new MediaStream([track.mediaStreamTrack]);
                 video.play().catch(() => {});
-                appendMessage('System', `${participant.identity} is sharing their screen.`);
+                
+                const displayName = participant.identity.split('_')[0];
+                appendMessage('System', `${displayName} is sharing their screen.`);
             } else if (track.kind === 'audio') {
                 if (viewerAudioEl) { viewerAudioEl.pause(); viewerAudioEl.remove(); }
                 viewerAudioEl = document.createElement('audio');
@@ -441,7 +443,6 @@ async function connectLiveKit() {
             console.warn('LiveKit disconnected:', reason);
             livekitRoom = null;
             if (reason !== 'CLIENT_INITIATED') {
-                appendMessage('System', 'LiveKit dropped. Reconnecting in 3s...');
                 setTimeout(connectLiveKit, 3000);
             }
         });
@@ -463,6 +464,7 @@ async function connectLiveKit() {
 
     } catch (err) {
         console.error('LiveKit connect error:', err);
+        livekitRoom = null;
         appendMessage('System', `LiveKit error: ${err.message}`);
     }
 }
