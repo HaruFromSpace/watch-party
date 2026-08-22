@@ -21,7 +21,7 @@ body {
     background-color: var(--bg-base);
     color: var(--text-primary);
     font-family: 'Outfit', sans-serif;
-    min-height: 100vh;
+    min-height: 100dvh;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -30,7 +30,7 @@ body {
 .app-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh;
     padding: 24px;
     gap: 24px;
     max-width: 1800px;
@@ -245,6 +245,7 @@ video {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
 }
 
 .chat-header {
@@ -440,8 +441,14 @@ video {
 
 /* --- Mobile Layout --- */
 @media (max-width: 768px) {
+    .app-container {
+        padding: 12px;
+        gap: 12px;
+    }
+
     .main-content {
         flex-direction: column;
+        gap: 12px;
     }
 
     .video-container {
@@ -454,7 +461,7 @@ video {
         width: 100%;
         max-width: 100%;
         flex: 1;
-        min-height: 400px;
+        min-height: 0;
         border-left: none;
         border-top: 1px solid rgba(255,255,255,0.06);
     }
