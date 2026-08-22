@@ -1,14 +1,16 @@
 :root {
     color-scheme: dark;
-    --bg-base: #050505;
-    --bg-surface: #0a0a0c;
-    --bg-elevated: #121216;
-    --text-primary: #ffffff;
-    --text-secondary: #8a8f98;
-    --accent: #ffffff;
-    --accent-dim: rgba(255, 255, 255, 0.1);
-    --border-color: rgba(255, 255, 255, 0.08);
-    --success: #34d399;
+    --bg-base: #07090f;       /* Deepest midnight space */
+    --bg-surface: #0f1423;    /* Dark night blue */
+    --bg-elevated: #1a2235;   /* Moonlit slate */
+    --text-primary: #f1f5f9;  /* Starlight white */
+    --text-secondary: #94a3b8; /* Dim silver */
+    --accent: #e2e8f0;        /* Bright moonlight */
+    --accent-dim: rgba(226, 232, 240, 0.15);
+    --border-color: rgba(148, 163, 184, 0.15);
+    --success: #38bdf8;       /* Glowing cyan/blue */
+    --primary: #94a3b8;       /* Silver */
+    --secondary: #cbd5e1;     /* Light silver */
 }
 
 * {
@@ -18,6 +20,7 @@
 }
 
 body {
+    background: radial-gradient(ellipse at top center, #131b2f 0%, var(--bg-base) 100%);
     background-color: var(--bg-base);
     color: var(--text-primary);
     font-family: 'Outfit', sans-serif;
