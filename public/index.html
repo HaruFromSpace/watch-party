@@ -21,6 +21,10 @@
                 <span id="participantCount" title="People in room" style="margin-left:10px;font-size:0.8em;opacity:0.7;cursor:default;"></span>
             </div>
             <div class="header-controls">
+                <div class="volume-control" style="display: flex; align-items: center; gap: 6px; margin-right: 10px;" title="Screen Share Volume">
+                    <span style="font-size: 1.1rem; opacity: 0.8;">🔊</span>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1" style="width: 70px; cursor: pointer; accent-color: #fff;">
+                </div>
                 <button class="action-btn share-btn magnetic" id="shareScreenBtn">
                     <span class="btn-content">Share Screen</span>
                 </button>

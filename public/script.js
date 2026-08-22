@@ -24,8 +24,18 @@ const joinModal = document.getElementById('joinModal');
 const roomInput = document.getElementById('roomInput');
 const usernameInput = document.getElementById('usernameInput');
 const shareScreenBtn = document.getElementById('shareScreenBtn');
+const volumeSlider = document.getElementById('volumeSlider');
 const ambientGlow = document.getElementById('ambientGlow');
 const glowCtx = ambientGlow.getContext('2d');
+
+// --- Volume Logic ---
+volumeSlider.addEventListener('input', (e) => {
+    const vol = parseFloat(e.target.value);
+    video.volume = vol;
+    if (viewerAudioEl) {
+        viewerAudioEl.volume = vol;
+    }
+});
 
 let currentRoom = '';
 let username = '';
@@ -62,6 +72,7 @@ function connectToRoom() {
 
     currentRoom = room;
     username = name;
+    localStorage.setItem('watchPartyUser', username);
     
     roomNameDisplay.textContent = currentRoom;
     joinModal.classList.add('hidden');
@@ -94,8 +105,20 @@ window.onload = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
     const userParam = urlParams.get('user');
+    
     if (roomParam) roomInput.value = roomParam;
-    if (userParam) usernameInput.value = userParam;
+    
+    const savedUser = localStorage.getItem('watchPartyUser');
+    if (userParam) {
+        usernameInput.value = userParam;
+    } else if (savedUser) {
+        usernameInput.value = savedUser;
+    }
+
+    // Auto-login if we already have both filled out
+    if (roomInput.value && usernameInput.value && !userParam) {
+        connectToRoom();
+    }
 };
 
 // --- Video Proxy Logic ---
@@ -293,6 +316,7 @@ const qualitySelect = document.getElementById('qualitySelect');
 // --- LiveKit Integration (Screen Share & Audio) ---
 let livekitRoom = null;
 let screenTrack = null;
+let viewerAudioEl = null;
 let LIVEKIT_URL = '';
 
 async function getLivekitToken(room, username) {
@@ -326,7 +350,6 @@ async function connectLiveKit() {
             },
         });
 
-        let viewerAudioEl = null;
         let audioBlocked = false;
 
         function showUnmutePrompt() {
@@ -364,6 +387,7 @@ async function connectLiveKit() {
                 viewerAudioEl = document.createElement('audio');
                 viewerAudioEl.srcObject = new MediaStream([track.mediaStreamTrack]);
                 viewerAudioEl.autoplay = true;
+                viewerAudioEl.volume = volumeSlider.value;
                 viewerAudioEl.style.display = 'none';
                 document.body.appendChild(viewerAudioEl);
                 viewerAudioEl.play().catch(() => {
