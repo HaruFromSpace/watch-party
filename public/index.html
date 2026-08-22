@@ -16,22 +16,22 @@
     <div class="app-container">
         <!-- Header -->
         <header class="header">
-            <div class="logo">SYNC.</div>
+            <div class="logo" style="color: var(--accent);">SYNC. 同步</div>
             <div class="room-info">
                 <div style="display: flex; gap: 6px; align-items: center; margin-right: 8px;">
-                    Room <span id="roomNameDisplay">...</span>
+                    Room 房间 <span id="roomNameDisplay">...</span>
                 </div>
                 <div id="participantAvatars" class="avatar-stack"></div>
             </div>
             <div class="header-controls">
                 <button class="action-btn share-btn magnetic" id="shareScreenBtn">
-                    <span class="btn-content">Share Screen</span>
+                    <span class="btn-content">Share 共享屏幕</span>
                 </button>
                 <button class="join-btn magnetic" id="copyInviteBtn" onclick="copyInviteLink()">
-                    <span class="btn-content">Copy Invite</span>
+                    <span class="btn-content">Invite 复制邀请</span>
                 </button>
                 <button class="join-btn magnetic" onclick="joinNewRoom()">
-                    <span class="btn-content">Switch Room</span>
+                    <span class="btn-content">Switch 切换房间</span>
                 </button>
             </div>
         </header>
@@ -45,17 +45,17 @@
                 <div class="video-wrapper">
                     <video id="syncVideo" playsinline poster="offline.jpg"></video>
                     <div id="laserContainer" class="laser-container"></div>
-                    <div class="laser-hint">Hold SHIFT over video to use Laser Pointer</div>
+                    <div class="laser-hint">Hold SHIFT over video to use Laser Pointer (按住 Shift 使用激光笔)</div>
                 </div>
 
                 <div class="video-controls-panel">
                     <div class="url-input-group" style="display: flex; gap: 12px; align-items: center; width: 100%;">
-                        <input type="text" id="videoUrlInput" class="glow-input" placeholder="Paste direct .mp4 link..." style="flex: 1;">
+                        <input type="text" id="videoUrlInput" class="glow-input" placeholder="Paste direct link... (粘贴视频链接...)" style="flex: 1;">
                         <button class="magnetic load-btn" onclick="changeVideo()">
-                            <span class="btn-content">Load</span>
+                            <span class="btn-content">Load 加载</span>
                         </button>
                         <select id="qualitySelect" class="glow-input" style="padding: 12px 16px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer;">
-                            <option value="auto">Auto Quality</option>
+                            <option value="auto">Auto 自动</option>
                             <option value="1080p60" selected>1080p 60fps</option>
                             <option value="720p30">720p 30fps</option>
                             <option value="480p30">480p 30fps</option>
@@ -67,13 +67,13 @@
             <!-- Chat Section -->
             <div class="chat-container">
                 <div class="chat-header">
-                    <h3>Live Chat</h3>
+                    <h3>Live Chat 聊天</h3>
                     <div class="pulse-indicator"></div>
                 </div>
                 
                 <!-- Sticker Panel (Hidden by default) -->
                 <div class="sticker-panel hidden" id="stickerPanel">
-                    <input type="text" id="gifSearchInput" class="glow-input" placeholder="Search Tenor GIFs..." style="width: 100%; margin-bottom: 12px;">
+                    <input type="text" id="gifSearchInput" class="glow-input" placeholder="Search GIFs... (搜索动图...)" style="width: 100%; margin-bottom: 12px;">
                     <div class="sticker-grid" id="stickerGrid">
                         <!-- Stickers injected via JS -->
                     </div>
@@ -96,11 +96,11 @@
                 </div>
                 <div class="chat-input-area">
                     <button id="toggleStickersBtn" class="magnetic action-btn" title="Stickers">
-                        <span class="btn-content">😊</span>
+                        <span class="btn-content">🎁</span>
                     </button>
-                    <input type="text" id="chatInput" class="glow-input" placeholder="Type a message...">
+                    <input type="text" id="chatInput" class="glow-input" placeholder="Type a message... (输入消息...)">
                     <button id="sendChatBtn" class="magnetic send-btn">
-                        <span class="btn-content">Send</span>
+                        <span class="btn-content">Send 发送</span>
                     </button>
                 </div>
             </div>
@@ -110,14 +110,14 @@
     <!-- Modals -->
     <div class="modal" id="joinModal">
         <div class="modal-content">
-            <h2>Enter the Void</h2>
-            <p>Sync up and watch together seamlessly.</p>
+            <h2>Enter the Room (进入房间)</h2>
+            <p>Sync up and watch together seamlessly. (同步观看)</p>
             <div class="input-stack">
-                <input type="text" id="roomInput" class="glow-input" placeholder="Room ID">
-                <input type="text" id="usernameInput" class="glow-input" placeholder="Your Alias">
+                <input type="text" id="roomInput" class="glow-input" placeholder="Room ID (房间号)">
+                <input type="text" id="usernameInput" class="glow-input" placeholder="Your Name (你的名字)">
             </div>
             <button class="magnetic enter-btn" onclick="connectToRoom()">
-                <span class="btn-content">Initialize Connection</span>
+                <span class="btn-content">Connect 连接</span>
             </button>
         </div>
     </div>
