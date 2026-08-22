@@ -631,19 +631,22 @@ select.glow-input option {
 
 .soundboard-btn {
     background: var(--bg-elevated);
-    border: 1px solid var(--primary);
+    border: 1px solid var(--border-color);
     border-radius: 20px;
     padding: 4px 12px;
-    font-size: 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 0 8px rgba(111, 56, 197, 0.2);
+    box-shadow: 0 0 8px rgba(148, 163, 184, 0.1);
 }
 
 .soundboard-btn:hover {
-    transform: translateY(-2px) scale(1.1);
-    background: var(--primary);
+    transform: translateY(-2px);
+    background: var(--bg-surface);
     border-color: var(--primary);
+    box-shadow: 0 0 12px rgba(148, 163, 184, 0.3);
 }
 
 .laser-container {
