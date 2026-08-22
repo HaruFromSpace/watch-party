@@ -541,6 +541,9 @@ async function stopScreenShare() {
     screenTrack = null;
 
     video.srcObject = null;
+    video.removeAttribute('src');
+    video.load(); // This forces the browser to show the offline.jpg poster again
+    
     shareScreenBtn.classList.remove('sharing');
     shareScreenBtn.querySelector('.btn-content').textContent = 'Share Screen';
 }
