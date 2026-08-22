@@ -4,7 +4,7 @@ const https = require('https');
 const { Server } = require('socket.io');
 const path = require('path');
 const url = require('url');
-const { AccessToken } = require('livekit-server-sdk');
+const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,6 +16,34 @@ const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'ack1xfkJCO8oR44x0Y
 const LIVEKIT_URL = process.env.LIVEKIT_URL || 'wss://web-9weyycwi.livekit.cloud';
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Admin Dashboard Routes
+app.use(express.json());
+
+const httpUrl = LIVEKIT_URL.replace('wss://', 'https://').replace('ws://', 'http://');
+const roomService = new RoomServiceClient(httpUrl, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'haru';
+
+app.get('/api/admin/rooms', async (req, res) => {
+    if (req.query.pass !== ADMIN_PASS) return res.status(401).json({error: 'unauthorized'});
+    try {
+        const rooms = await roomService.listRooms();
+        res.json(rooms);
+    } catch (err) {
+        res.status(500).json({error: err.message});
+    }
+});
+
+app.post('/api/admin/kill', async (req, res) => {
+    if (req.body.pass !== ADMIN_PASS) return res.status(401).json({error: 'unauthorized'});
+    try {
+        await roomService.deleteRoom(req.body.room);
+        res.json({success: true});
+    } catch (err) {
+        res.status(500).json({error: err.message});
+    }
+});
+
 
 // LiveKit Token Endpoint
 app.get('/api/livekit-token', async (req, res) => {
