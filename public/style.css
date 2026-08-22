@@ -176,6 +176,14 @@ button {
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.plyr {
+    border-radius: 12px;
+    overflow: hidden;
+    width: 100%;
+    --plyr-color-main: #ffffff;
+    --plyr-video-background: transparent;
+}
+
 video {
     width: 100%;
     display: block;

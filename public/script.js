@@ -24,16 +24,19 @@ const joinModal = document.getElementById('joinModal');
 const roomInput = document.getElementById('roomInput');
 const usernameInput = document.getElementById('usernameInput');
 const shareScreenBtn = document.getElementById('shareScreenBtn');
-const volumeSlider = document.getElementById('volumeSlider');
 const ambientGlow = document.getElementById('ambientGlow');
 const glowCtx = ambientGlow.getContext('2d');
 
-// --- Volume Logic ---
-volumeSlider.addEventListener('input', (e) => {
-    const vol = parseFloat(e.target.value);
-    video.volume = vol;
+// --- Initialize Plyr ---
+const player = new Plyr('#syncVideo', {
+    controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+    keyboard: { focused: true, global: true }
+});
+
+player.on('volumechange', () => {
     if (viewerAudioEl) {
-        viewerAudioEl.volume = vol;
+        viewerAudioEl.volume = player.volume;
+        viewerAudioEl.muted = player.muted;
     }
 });
 
@@ -130,7 +133,7 @@ async function changeVideo() {
         if (shareScreenBtn.classList.contains('sharing')) {
             await stopScreenShare();
         }
-        video.controls = true;
+
         video.srcObject = null;
         video.src = proxyUrl;
         
@@ -159,7 +162,7 @@ socket.on('syncState', (state) => {
     // Load video URL if we don't have one yet
     if (state.videoUrl && !video.src.includes('/proxy')) {
         const proxyUrl = `/proxy?url=${encodeURIComponent(state.videoUrl)}`;
-        video.controls = true;
+
         video.srcObject = null;
         video.src = proxyUrl;
     }
@@ -175,7 +178,7 @@ socket.on('syncState', (state) => {
 // Someone loaded a new video — load it on our end too
 socket.on('videoUrlChange', (url) => {
     const proxyUrl = `/proxy?url=${encodeURIComponent(url)}`;
-    video.controls = true;
+
     video.srcObject = null;
     video.src = proxyUrl;
     appendMessage('System', 'Host loaded a new video.');
@@ -382,7 +385,7 @@ async function connectLiveKit() {
                 video.removeAttribute('src');
                 video.innerHTML = '';
                 video.load();
-                video.controls = false;
+
                 video.srcObject = new MediaStream([track.mediaStreamTrack]);
                 video.play().catch(() => {});
                 appendMessage('System', `${participant.identity} is sharing their screen.`);
@@ -391,7 +394,8 @@ async function connectLiveKit() {
                 viewerAudioEl = document.createElement('audio');
                 viewerAudioEl.srcObject = new MediaStream([track.mediaStreamTrack]);
                 viewerAudioEl.autoplay = true;
-                viewerAudioEl.volume = volumeSlider.value;
+                viewerAudioEl.volume = player.volume;
+                viewerAudioEl.muted = player.muted;
                 viewerAudioEl.style.display = 'none';
                 document.body.appendChild(viewerAudioEl);
                 viewerAudioEl.play().catch(() => {
@@ -544,7 +548,7 @@ async function stopScreenShare() {
     shareScreenBtn._publishedTracks = [];
     screenTrack = null;
 
-    video.controls = false;
+
     video.srcObject = null;
     video.removeAttribute('src');
     video.load(); // This forces the browser to show the offline.jpg poster again
