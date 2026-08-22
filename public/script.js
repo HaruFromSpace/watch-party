@@ -29,7 +29,7 @@ const glowCtx = ambientGlow.getContext('2d');
 
 // --- Initialize Plyr ---
 const player = new Plyr('#syncVideo', {
-    controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+    controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'pip', 'fullscreen'],
     keyboard: { focused: true, global: true }
 });
 
@@ -290,9 +290,57 @@ function sendMessage() {
     }
 }
 sendChatBtn.addEventListener('click', sendMessage);
-chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage();
+let typingTimeout;
+chatInput.addEventListener('input', () => {
+    if (currentRoom) {
+        socket.emit('typing', { room: currentRoom, user: username });
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('stopTyping', { room: currentRoom, user: username });
+        }, 1500);
+    }
 });
+
+chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        sendMessage();
+        socket.emit('stopTyping', { room: currentRoom, user: username });
+    }
+});
+
+const typingIndicator = document.getElementById('typingIndicator');
+socket.on('typing', (data) => {
+    if (data.user !== username) {
+        typingIndicator.textContent = `${data.user} is typing...`;
+        typingIndicator.classList.remove('hidden');
+    }
+});
+socket.on('stopTyping', (data) => {
+    if (data.user !== username) {
+        typingIndicator.classList.add('hidden');
+    }
+});
+
+// Floating Reactions
+document.querySelectorAll('.reaction-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const emoji = btn.getAttribute('data-emoji');
+        if (currentRoom) {
+            socket.emit('reaction', { room: currentRoom, emoji });
+        }
+    });
+});
+
+socket.on('reaction', (data) => {
+    const wrapper = document.querySelector('.video-wrapper');
+    const el = document.createElement('div');
+    el.className = 'floating-reaction';
+    el.textContent = data.emoji;
+    el.style.left = (10 + Math.random() * 80) + '%';
+    wrapper.appendChild(el);
+    setTimeout(() => el.remove(), 2500);
+});
+
 socket.on('chatMessage', (data) => {
     appendMessage(data.user, data.message);
 });

@@ -333,6 +333,58 @@ video {
     gap: 12px;
 }
 
+.typing-indicator {
+    padding: 0 24px 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    min-height: 20px;
+    transition: opacity 0.3s;
+}
+
+.typing-indicator.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.reaction-bar {
+    display: flex;
+    gap: 8px;
+    padding: 0 24px 12px;
+    justify-content: flex-start;
+}
+
+.reaction-btn {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.reaction-btn:hover {
+    transform: scale(1.15);
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.floating-reaction {
+    position: absolute;
+    bottom: 20px;
+    font-size: 2.5rem;
+    pointer-events: none;
+    animation: floatUp 2.5s ease-out forwards;
+    z-index: 100;
+}
+
+@keyframes floatUp {
+    0% { transform: translateY(0) scale(0.5); opacity: 0; }
+    20% { transform: translateY(-30px) scale(1.2); opacity: 1; }
+    100% { transform: translateY(-200px) scale(1); opacity: 0; }
+}
+
 /* Modals */
 .modal {
     position: fixed;

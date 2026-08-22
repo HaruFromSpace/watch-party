@@ -218,6 +218,18 @@ io.on('connection', (socket) => {
         io.to(room).emit('chatMessage', { message, user });
     });
 
+    socket.on('typing', ({ room, user }) => {
+        socket.to(room).emit('typing', { user });
+    });
+
+    socket.on('stopTyping', ({ room, user }) => {
+        socket.to(room).emit('stopTyping', { user });
+    });
+
+    socket.on('reaction', ({ room, emoji }) => {
+        io.to(room).emit('reaction', { emoji });
+    });
+
     socket.on('disconnect', () => {
         if (currentRoom && roomParticipants[currentRoom]) {
             delete roomParticipants[currentRoom][socket.id];
