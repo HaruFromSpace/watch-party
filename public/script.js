@@ -347,11 +347,14 @@ socket.on('reaction', (data) => {
     const el = document.createElement('div');
     el.className = 'floating-reaction';
     
-    if (data.emoji.startsWith('/emojis/')) {
+    if (data.emoji.includes('/emojis/')) {
         const img = document.createElement('img');
         img.src = data.emoji;
         img.style.width = '40px';
         img.style.height = '40px';
+        img.style.background = 'white';
+        img.style.borderRadius = '50%';
+        img.style.boxShadow = '0 0 0 2px white';
         el.appendChild(img);
     } else {
         el.textContent = data.emoji;
@@ -377,7 +380,11 @@ function appendMessage(sender, text) {
         contentHtml = `<img src="/proxy?url=${encodeURIComponent(text)}" style="max-width: 100%; border-radius: 8px; margin-top: 8px; display: block;">`;
     } else {
         // Escape HTML to prevent XSS, but allow normal text
-        const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        let safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        
+        // Parse [e:ID] tags into chat emoji images
+        safeText = safeText.replace(/\[e:(\d+)\]/g, '<img src="/emojis/$1.gif" class="chat-emoji" alt="emoji">');
+        
         contentHtml = `<div>${safeText}</div>`;
     }
 
@@ -769,5 +776,32 @@ if (wechatEmojiGrid) {
 if (expandEmojisBtn) {
     expandEmojisBtn.addEventListener('click', () => {
         emojiPickerPanel.classList.toggle('hidden');
+    });
+}
+
+// Chat Emoji Picker Initialization
+const chatEmojiGrid = document.getElementById('chatEmojiGrid');
+const chatEmojiPanel = document.getElementById('chatEmojiPanel');
+const toggleChatEmojisBtn = document.getElementById('toggleChatEmojisBtn');
+const chatInputRef = document.getElementById('chatInput');
+
+if (chatEmojiGrid) {
+    for (let i = 0; i <= 99; i++) {
+        const img = document.createElement('img');
+        img.src = '/emojis/' + i + '.gif';
+        img.alt = 'emoji ' + i;
+        img.loading = 'lazy';
+        img.addEventListener('click', () => {
+            chatInputRef.value += '[e:' + i + ']';
+            chatEmojiPanel.classList.add('hidden');
+            chatInputRef.focus();
+        });
+        chatEmojiGrid.appendChild(img);
+    }
+}
+
+if (toggleChatEmojisBtn) {
+    toggleChatEmojisBtn.addEventListener('click', () => {
+        chatEmojiPanel.classList.toggle('hidden');
     });
 }

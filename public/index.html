@@ -103,6 +103,16 @@
                     <button class="soundboard-btn" data-sound="applause" title="Applause">🔊 Clap</button>
                 </div>
                 <div class="chat-input-area">
+                    <!-- Chat Emoji Panel (Hidden by default) -->
+                    <div class="chat-emoji-panel hidden" id="chatEmojiPanel">
+                        <div class="emoji-grid" id="chatEmojiGrid">
+                            <!-- Injected via JS -->
+                        </div>
+                    </div>
+
+                    <button id="toggleChatEmojisBtn" class="magnetic action-btn" title="Emojis">
+                        <span class="btn-content">😀</span>
+                    </button>
                     <button id="toggleStickersBtn" class="magnetic action-btn" title="Stickers">
                         <span class="btn-content">🎁</span>
                     </button>

@@ -759,3 +759,37 @@ select.glow-input option {
 .reaction-bar {
     position: relative;
 }
+
+/* Chat Emoji Panel */
+.chat-input-area {
+    position: relative;
+}
+
+.chat-emoji-panel {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    width: 280px;
+    height: 200px;
+    overflow-y: auto;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.chat-emoji-panel.hidden {
+    display: none;
+}
+
+/* Inline Chat Emojis */
+img.chat-emoji {
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+    background: white;
+    border-radius: 50%;
+    margin: 0 2px;
+}
